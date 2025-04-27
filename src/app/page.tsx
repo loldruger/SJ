@@ -44,8 +44,8 @@ const saveInventoryToDB = async (inventory: InventoryItem[]) => {
   const tx = db.transaction(storeName, 'readwrite');
   const store = tx.objectStore(storeName);
   if (Array.isArray(inventory)) {
-      inventory.forEach(item => store.put(item));
-      await tx.done;
+    inventory.forEach(item => store.put(item));
+    await tx.done;
   }
   db.close();
 };
@@ -117,10 +117,10 @@ const InventoryPage: React.FC = () => {
             : item
         );
       });
-        setRealTimeChanges(prevChanges => ({
-            ...prevChanges,
-            [inventory[existingItemIndex].id]: (prevChanges[inventory[existingItemIndex].id] || 0) + newItemQuantity,
-        }));
+      setRealTimeChanges(prevChanges => ({
+        ...prevChanges,
+        [inventory[existingItemIndex].id]: (prevChanges[inventory[existingItemIndex].id] || 0) + newItemQuantity,
+      }));
 
       toast({
         title: "Success",
@@ -137,10 +137,10 @@ const InventoryPage: React.FC = () => {
         if (!Array.isArray(prevInventory)) return [newItem];
         return [...prevInventory, newItem];
       });
-        setRealTimeChanges(prevChanges => ({
-            ...prevChanges,
-            [newItem.id]: (prevChanges[newItem.id] || 0) + newItemQuantity,
-        }));
+      setRealTimeChanges(prevChanges => ({
+        ...prevChanges,
+        [newItem.id]: (prevChanges[newItem.id] || 0) + newItemQuantity,
+      }));
       toast({
         title: "Success",
         description: `${newItemName} ${newItemTag ? `(${newItemTag})` : ''} added to inventory.`,
@@ -196,10 +196,10 @@ const InventoryPage: React.FC = () => {
     });
     setIsDeleteConfirmationOpen(false);
     setSelectedItem(null);
-      setRealTimeChanges(prevChanges => {
-          const { [selectedItem.id]: removed, ...rest } = prevChanges;
-          return rest;
-      });
+    setRealTimeChanges(prevChanges => {
+      const { [selectedItem.id]: removed, ...rest } = prevChanges;
+      return rest;
+    });
     toast({
       title: "Success",
       description: `${selectedItem.name} deleted.`,
@@ -354,12 +354,18 @@ const InventoryPage: React.FC = () => {
   const totalQuantityByName = useMemo(() => {
     if (!inventory || !Array.isArray(inventory)) return {};
 
-      return inventory.reduce((acc: { [name: string]: number }, item) => {
-          const key = item.name;
-          acc[key] = (acc[key] || 0) + item.quantity;
-          return acc;
-      }, {});
+    return inventory.reduce((acc: { [name: string]: number }, item) => {
+      const key = item.name;
+      acc[key] = (acc[key] || 0) + item.quantity;
+      return acc;
+    }, {});
   }, [inventory]);
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      handleAddItem();
+    }
+  };
 
   return (
     <div className="container mx-auto p-4">
@@ -409,14 +415,14 @@ const InventoryPage: React.FC = () => {
                 <TableCell>
                   {item.name}{" "}
                   {change !== 0 && (
-                    <span className={change > 0 ? "text-positive" : "text-accent"}>
+                    <span className={change > 0 ? "text-positive" : "text-destructive"}>
                       ({change > 0 ? "+" : ""}
                       {change})
                     </span>
                   )}
                 </TableCell>
                 <TableCell>
-                    {item.quantity}
+                  {item.quantity}
                 </TableCell>
                 <TableCell>{item.tag}</TableCell>
                 <TableCell className="text-right">
@@ -424,12 +430,14 @@ const InventoryPage: React.FC = () => {
                     variant="secondary"
                     size="icon"
                     onClick={() => handleQuantityChange(item.id, 1)}
+                    onMouseDown={(e) => e.stopPropagation()}
                   >
                     <Plus className="h-4 w-4" />
                   </Button>
                   <Button
                     variant="destructive"
                     size="icon"
+                    onMouseDown={(e) => e.stopPropagation()}
                     onClick={() => handleQuantityChange(item.id, -1)}
                   >
                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4"><line x1="5" x2="19" y1="12" y2="12" /></svg>
@@ -548,12 +556,14 @@ const InventoryPage: React.FC = () => {
               placeholder="수량"
               value={newItemQuantity === 0 ? '' : newItemQuantity.toString()}
               onChange={e => setNewItemQuantity(Number(e.target.value))}
+              onKeyDown={handleKeyDown}
             />
             <Input
               type="text"
               placeholder="태그"
               value={newItemTag || ''}
               onChange={e => setNewItemTag(e.target.value)}
+              onKeyDown={handleKeyDown}
             />
           </div>
           <Button onClick={handleAddItem} className="w-full"><Plus className="mr-2" /> 품목 추가</Button>
