@@ -4,7 +4,7 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Trash2, Edit, FileInput, FileText, Plus, ArrowUp, ArrowDown, Minus } from 'lucide-react';
+import { Trash2, Edit, FileInput, FileText, Plus } from 'lucide-react';
 import { useToast } from "@/hooks/use-toast";
 import {
   AlertDialog,
@@ -44,8 +44,8 @@ const saveInventoryToDB = async (inventory: InventoryItem[]) => {
   const tx = db.transaction(storeName, 'readwrite');
   const store = tx.objectStore(storeName);
   if (inventory) {
-      inventory.forEach(item => store.put(item));
-      await tx.done;
+    inventory.forEach(item => store.put(item));
+    await tx.done;
   }
   db.close();
 };
@@ -78,7 +78,7 @@ const InventoryPage: React.FC = () => {
   useEffect(() => {
     const loadInitialInventory = async () => {
       const data = await loadInventoryFromDB();
-      setInventory(data);
+      setInventory(data || []);
     };
 
     loadInitialInventory();
@@ -100,7 +100,7 @@ const InventoryPage: React.FC = () => {
 
     const existingItemIndex = inventory.findIndex(
       item => item.name === newItemName &&
-             ((newItemTag === undefined || newItemTag === '') ? (item.tag === undefined || item.tag === '') : item.tag === newItemTag)
+        ((newItemTag === undefined || newItemTag === '') ? (item.tag === undefined || item.tag === '') : item.tag === newItemTag)
     );
 
     if (existingItemIndex !== -1) {
@@ -184,33 +184,33 @@ const InventoryPage: React.FC = () => {
     });
   };
 
-    const handleQuantityChange = (itemId: string, change: number) => {
-        setInventory(prevInventory => {
-            const itemToUpdate = prevInventory.find(item => item.id === itemId);
-            if (!itemToUpdate) return prevInventory;
+  const handleQuantityChange = (itemId: string, change: number) => {
+    setInventory(prevInventory => {
+      const itemToUpdate = prevInventory.find(item => item.id === itemId);
+      if (!itemToUpdate) return prevInventory;
 
-            const updatedQuantity = itemToUpdate.quantity + change;
+      const updatedQuantity = itemToUpdate.quantity + change;
 
-            if (updatedQuantity < 0) {
-                toast({
-                    title: "Error",
-                    description: "품목 수량은 0 미만이 될 수 없습니다.",
-                    variant: "destructive",
-                });
-                return prevInventory;
-            }
-
-            // Update real-time changes
-            setRealTimeChanges(prevChanges => ({
-                ...prevChanges,
-                [itemId]: (prevChanges[itemId] || 0) + change,
-            }));
-
-            return prevInventory.map(item =>
-                item.id === itemId ? { ...item, quantity: updatedQuantity } : item
-            );
+      if (updatedQuantity < 0) {
+        toast({
+          title: "Error",
+          description: "품목 수량은 0 미만이 될 수 없습니다.",
+          variant: "destructive",
         });
-    };
+        return prevInventory;
+      }
+
+      // Update real-time changes
+      setRealTimeChanges(prevChanges => ({
+        ...prevChanges,
+        [itemId]: (prevChanges[itemId] || 0) + change,
+      }));
+
+      return prevInventory.map(item =>
+        item.id === itemId ? { ...item, quantity: updatedQuantity } : item
+      );
+    });
+  };
 
   const handleImportCSV = (file: File | null) => {
     if (!file) {
@@ -348,81 +348,92 @@ const InventoryPage: React.FC = () => {
           <TableRow>
             <TableHead onClick={() => handleSort('name')} className="cursor-pointer">
               이름
-              {sortColumn === 'name' && (sortDirection === 'asc' ? <ArrowUp className="inline ml-1 h-4 w-4" /> : <ArrowDown className="inline ml-1 h-4 w-4" />)}
+              {sortColumn === 'name' && (sortDirection === 'asc' ? <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="inline ml-1 h-4 w-4"><path d="m3 7 9-5 9 5" /></svg> : <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="inline ml-1 h-4 w-4"><path d="m21 17-9 5-9-5" /></svg>)}
             </TableHead>
             <TableHead onClick={() => handleSort('quantity')} className="cursor-pointer">
               수량
-              {sortColumn === 'quantity' && (sortDirection === 'asc' ? <ArrowUp className="inline ml-1 h-4 w-4" /> : <ArrowDown className="inline ml-1 h-4 w-4" />)}
+              {sortColumn === 'quantity' && (sortDirection === 'asc' ? <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="inline ml-1 h-4 w-4"><path d="m3 7 9-5 9 5" /></svg> : <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="inline ml-1 h-4 w-4"><path d="m21 17-9 5-9-5" /></svg>)}
             </TableHead>
             <TableHead onClick={() => handleSort('tag')} className="cursor-pointer">
               태그
-              {sortColumn === 'tag' && (sortDirection === 'asc' ? <ArrowUp className="inline ml-1 h-4 w-4" /> : <ArrowDown className="inline ml-1 h-4 w-4" />)}
+              {sortColumn === 'tag' && (sortDirection === 'asc' ? <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="inline ml-1 h-4 w-4"><path d="m3 7 9-5 9 5" /></svg> : <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="inline ml-1 h-4 w-4"><path d="m21 17-9 5-9-5" /></svg>)}
             </TableHead>
             <TableHead className="text-right">작업</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
           {sortedInventory.map((item) => {
-              const change = realTimeChanges[item.id] || 0;
-              return (
-                <TableRow key={item.id}>
-                  <TableCell>
-                    {item.name}{" "}
-                    {change !== 0 && (
-                      <span className={change > 0 ? "text-positive" : "text-accent"}>
-                        ({change > 0 ? "+" : ""}
-                        {change})
-                      </span>
-                    )}
-                  </TableCell>
-                  <TableCell>{item.quantity}</TableCell>
-                  <TableCell>{item.tag}</TableCell>
-                  <TableCell className="text-right">
-                    <Button
-                      variant="secondary"
-                      size="icon"
-                      onClick={() => handleQuantityChange(item.id, 1)}
-                    >
-                      <Plus className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      variant="secondary"
-                      size="icon"
-                      onClick={() => handleQuantityChange(item.id, -1)}
-                    >
-                      <Minus className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="icon"
-                      onClick={() => handleEditItem(item)}
-                    >
-                      <Edit className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      variant="destructive"
-                      size="icon"
-                      onClick={() => handleDeleteItem(item)}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </TableCell>
-                </TableRow>
-              );
-            })}
+            const change = realTimeChanges[item.id] || 0;
+            return (
+              <TableRow key={item.id}>
+                <TableCell>
+                  {item.name}{" "}
+                  {change !== 0 && (
+                    <span className={change > 0 ? "text-positive" : "text-accent"}>
+                      ({change > 0 ? "+" : ""}
+                      {change})
+                    </span>
+                  )}
+                </TableCell>
+                <TableCell>
+                    {item.quantity}
+                </TableCell>
+                <TableCell>{item.tag}</TableCell>
+                <TableCell className="text-right">
+                  <Button
+                    variant="secondary"
+                    size="icon"
+                    onClick={() => handleQuantityChange(item.id, 1)}
+                  >
+                    <Plus className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="destructive"
+                    size="icon"
+                    onClick={() => handleQuantityChange(item.id, -1)}
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4"><line x1="5" x2="19" y1="12" y2="12" /></svg>
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    onClick={() => handleEditItem(item)}
+                  >
+                    <Edit className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="destructive"
+                    size="icon"
+                    onClick={() => handleDeleteItem(item)}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </TableCell>
+              </TableRow>
+            );
+          })}
         </TableBody>
       </Table>
 
       {/* Item Name Specific Quantity */}
       <div className="mt-4 rounded-md shadow-sm p-4 bg-secondary">
         <h2 className="text-lg font-semibold mb-2">품목별 총 수량</h2>
-        <ul>
-          {Object.entries(totalQuantityByName).map(([name, quantity]) => (
-            <li key={name} className="mb-1">
-              {name}: {quantity}
-            </li>
-          ))}
-        </ul>
+        <Table className="rounded-md shadow-sm">
+          <TableHeader>
+            <TableRow>
+              <TableHead>이름</TableHead>
+              <TableHead>총 수량</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {Object.entries(totalQuantityByName).map(([name, quantity]) => (
+              <TableRow key={name}>
+                <TableCell>{name}</TableCell>
+                <TableCell>{quantity}</TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
       </div>
 
       {/* Edit Dialog */}
