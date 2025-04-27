@@ -4,7 +4,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Trash2, Edit, FileInput, FileText, Plus, ArrowUp, ArrowDown } from 'lucide-react';
+import { Trash2, Edit, FileInput, FileText, Plus, ArrowUp, ArrowDown, Minus } from 'lucide-react';
 import { useToast } from "@/hooks/use-toast";
 import {
   AlertDialog,
@@ -18,7 +18,6 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { Textarea } from "@/components/ui/textarea";
 import * as Papa from 'papaparse';
 
 interface InventoryItem {
@@ -336,7 +335,7 @@ const InventoryPage: React.FC = () => {
               </TableCell>
               <TableCell className="text-right">
                 <Button variant="secondary" size="icon" onClick={() => handleQuantityChange(item.id, 1)}><Plus className="h-4 w-4" /></Button>
-                <Button variant="secondary" size="icon" onClick={() => handleQuantityChange(item.id, -1)}><Trash2 className="h-4 w-4" /></Button>
+                <Button variant="secondary" size="icon" onClick={() => handleQuantityChange(item.id, -1)}><Minus className="h-4 w-4" /></Button>
                 <Button variant="outline" size="icon" onClick={() => handleEditItem(item)}><Edit className="h-4 w-4" /></Button>
                 <Button variant="destructive" size="icon" onClick={() => handleDeleteItem(item)}><Trash2 className="h-4 w-4" /></Button>
               </TableCell>
