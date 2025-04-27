@@ -65,20 +65,43 @@ const InventoryPage: React.FC = () => {
       return;
     }
 
-    const newItem: InventoryItem = {
-      id: Date.now().toString(),
-      name: newItemName,
-      quantity: newItemQuantity,
-      description: newItemDescription,
-    };
-    setInventory([...inventory, newItem]);
+    const existingItemIndex = inventory.findIndex(item => item.name === newItemName);
+
+    if (existingItemIndex !== -1) {
+      // If the item already exists, update the quantity
+      const updatedInventory = inventory.map((item, index) =>
+        index === existingItemIndex
+          ? { ...item, quantity: item.quantity + newItemQuantity }
+          : item
+      );
+      setInventory(updatedInventory);
+      setRealTimeChanges(prevChanges => ({
+        ...prevChanges,
+        [inventory[existingItemIndex].id]: (prevChanges[inventory[existingItemIndex].id] || 0) + newItemQuantity,
+      }));
+
+      toast({
+        title: "Success",
+        description: `${newItemName} quantity updated.`,
+      });
+    } else {
+      // If the item doesn't exist, add it to the inventory
+      const newItem: InventoryItem = {
+        id: Date.now().toString(),
+        name: newItemName,
+        quantity: newItemQuantity,
+        description: newItemDescription,
+      };
+      setInventory([...inventory, newItem]);
+      toast({
+        title: "Success",
+        description: `${newItemName} added to inventory.`,
+      });
+    }
+
     setNewItemName('');
     setNewItemQuantity(0);
     setNewItemDescription('');
-    toast({
-      title: "Success",
-      description: `${newItemName} added to inventory.`,
-    });
   };
 
   const handleEditItem = (item: InventoryItem) => {
