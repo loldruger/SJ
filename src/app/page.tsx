@@ -65,7 +65,8 @@ const InventoryPage: React.FC = () => {
 
     // Check if item with same name and tag already exists
     const existingItemIndex = inventory.findIndex(
-      item => item.name === newItemName && (newItemTag === undefined ? item.tag === undefined : item.tag === newItemTag)
+      item => item.name === newItemName &&
+             ((newItemTag === undefined || newItemTag === '') ? (item.tag === undefined || item.tag === '') : item.tag === newItemTag)
     );
 
     if (existingItemIndex !== -1) {
