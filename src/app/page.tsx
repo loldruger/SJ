@@ -337,9 +337,23 @@ const InventoryPage: React.FC = () => {
   return (
     <div className="container mx-auto p-4">
       <h1 className="text-2xl font-bold mb-4">스마트 재고</h1>
-
+      {/* Data Manipulation Section */}
+      <div className="flex space-x-4 mb-4">
+        <label htmlFor="importCSV" className="flex items-center space-x-2 rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50">
+          <FileInput className="h-4 w-4" />
+          <span>CSV 가져오기</span>
+          <input
+            type="file"
+            id="importCSV"
+            accept=".csv"
+            className="hidden"
+            onChange={(e) => handleImportCSV(e.target.files ? e.target.files[0] : null)}
+          />
+        </label>
+        <Button variant="outline" onClick={handleExportCSV}><FileText className="h-4 w-4 mr-2" />CSV 내보내기</Button>
+      </div>
        {/* Inventory Table */}
-       <Table className="rounded-md shadow-sm">
+       <Table className="rounded-md shadow-sm mb-8">
         <TableCaption>재고 현황</TableCaption>
         <TableHeader>
           <TableRow>
@@ -428,22 +442,6 @@ const InventoryPage: React.FC = () => {
           ))}
         </TableBody>
       </Table>
-
-      {/* Data Manipulation Section */}
-      <div className="flex space-x-4 mb-4">
-        <label htmlFor="importCSV" className="flex items-center space-x-2 rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50">
-          <FileInput className="h-4 w-4" />
-          <span>CSV 가져오기</span>
-          <input
-            type="file"
-            id="importCSV"
-            accept=".csv"
-            className="hidden"
-            onChange={(e) => handleImportCSV(e.target.files ? e.target.files[0] : null)}
-          />
-        </label>
-        <Button variant="outline" onClick={handleExportCSV}><FileText className="h-4 w-4 mr-2" />CSV 내보내기</Button>
-      </div>
 
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
         <DialogContent className="sm:max-w-[425px]">
