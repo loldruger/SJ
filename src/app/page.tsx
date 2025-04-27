@@ -26,21 +26,19 @@ interface InventoryItem {
   id: string;
   name: string;
   quantity: number;
-  tags: string[];
+  tag: string;
 }
 
 const InventoryPage: React.FC = () => {
   const [inventory, setInventory] = useState<InventoryItem[]>([]);
   const [newItemName, setNewItemName] = useState('');
   const [newItemQuantity, setNewItemQuantity] = useState(0);
-  const [newItemTags, setNewItemTags] = useState<string[]>([]);
-  const [newTag, setNewTag] = useState('');
+  const [newItemTag, setNewItemTag] = useState('');
   const [selectedItem, setSelectedItem] = useState<InventoryItem | null>(null);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [editedItemName, setEditedItemName] = useState('');
   const [editedItemQuantity, setEditedItemQuantity] = useState(0);
-  const [editedItemTags, setEditedItemTags] = useState<string[]>([]);
-  const [editNewTag, setEditNewTag] = useState('');
+  const [editedItemTag, setEditedItemTag] = useState('');
   const [isDeleteConfirmationOpen, setIsDeleteConfirmationOpen] = useState(false);
   const [realTimeChanges, setRealTimeChanges] = useState<{ [itemId: string]: number }>({});
   const [sortColumn, setSortColumn] = useState<keyof InventoryItem | null>('name');
@@ -50,46 +48,62 @@ const InventoryPage: React.FC = () => {
   useEffect(() => {
     // Load initial inventory data (can be replaced with API call)
     const initialData = [
-      { id: "1", name: "바나나", quantity: 50, tags: ["신선"] },
-      { id: "2", name: "사과", quantity: 75, tags: ["맛있는, 빨간"] },
-      { id: "3", name: "우유", quantity: 30, tags: ["고소한"] },
+      { id: "1", name: "바나나", quantity: 50, tag: "신선" },
+      { id: "2", name: "사과", quantity: 75, tag: "맛있는, 빨간" },
+      { id: "3", name: "우유", quantity: 30, tag: "고소한" },
     ];
     setInventory(initialData);
   }, []);
 
   const handleAddItem = () => {
-    if (newItemName.trim() === '') {
+    if (newItemName.trim() === '' || newItemTag.trim() === '') {
       toast({
         title: "Error",
-        description: "Item name cannot be empty.",
+        description: "Item name and tag cannot be empty.",
         variant: "destructive",
       });
       return;
     }
 
-    const newItem: InventoryItem = {
-      id: Date.now().toString(),
-      name: newItemName,
-      quantity: newItemQuantity,
-      tags: newItemTags,
-    };
-    setInventory([...inventory, newItem]);
-    toast({
-      title: "Success",
-      description: `${newItemName} added to inventory.`,
-    });
+    // Check if item with same name and tag already exists
+    const existingItemIndex = inventory.findIndex(
+      item => item.name === newItemName && item.tag === newItemTag
+    );
+
+    if (existingItemIndex !== -1) {
+      // Increase quantity of existing item
+      const updatedInventory = [...inventory];
+      updatedInventory[existingItemIndex].quantity += newItemQuantity;
+      setInventory(updatedInventory);
+      toast({
+        title: "Success",
+        description: `${newItemName} (${newItemTag}) quantity updated.`,
+      });
+    } else {
+      // Add new item
+      const newItem: InventoryItem = {
+        id: Date.now().toString(),
+        name: newItemName,
+        quantity: newItemQuantity,
+        tag: newItemTag,
+      };
+      setInventory([...inventory, newItem]);
+      toast({
+        title: "Success",
+        description: `${newItemName} (${newItemTag}) added to inventory.`,
+      });
+    }
 
     setNewItemName('');
     setNewItemQuantity(0);
-    setNewItemTags([]);
-    setNewTag('');
+    setNewItemTag('');
   };
 
   const handleEditItem = (item: InventoryItem) => {
     setSelectedItem(item);
     setEditedItemName(item.name);
     setEditedItemQuantity(item.quantity);
-    setEditedItemTags(item.tags);
+    setEditedItemTag(item.tag);
     setIsEditDialogOpen(true);
   };
 
@@ -101,7 +115,7 @@ const InventoryPage: React.FC = () => {
         ...item,
         name: editedItemName,
         quantity: editedItemQuantity,
-        tags: editedItemTags,
+        tag: editedItemTag,
       } : item
     );
     setInventory(updatedInventory);
@@ -186,7 +200,7 @@ const InventoryPage: React.FC = () => {
             id: Date.now().toString(),
             name: item.name || 'Unknown',
             quantity: parseInt(item.quantity || '0', 10),
-            tags: (item.tags || '').split(',').map((tag: string) => tag.trim()).filter((tag: string) => tag !== ''),
+            tag: item.tag || '',
           }));
           setInventory([...inventory, ...newInventoryItems]);
           toast({
@@ -213,10 +227,9 @@ const InventoryPage: React.FC = () => {
 
   const handleExportCSV = () => {
     const csvData = Papa.unparse({
-      fields: ["id", "name", "quantity", "tags"],
+      fields: ["id", "name", "quantity", "tag"],
       data: inventory.map(item => ({
         ...item,
-        tags: item.tags.join(', '),
       })),
     });
 
@@ -254,19 +267,6 @@ const InventoryPage: React.FC = () => {
         return direction * ((a[sortColumn] || 0) - (b[sortColumn] || 0));
       }
 
-      if (sortColumn === 'tags') {
-        const aValue = a[sortColumn].join(', ').toUpperCase();
-        const bValue = b[sortColumn].join(', ').toUpperCase();
-
-        if (aValue < bValue) {
-          return -1 * direction;
-        }
-        if (aValue > bValue) {
-          return 1 * direction;
-        }
-        return 0;
-      }
-
       const aValue = String(a[sortColumn]).toUpperCase();
       const bValue = String(b[sortColumn]).toUpperCase();
 
@@ -279,28 +279,6 @@ const InventoryPage: React.FC = () => {
       return 0;
     });
   }, [inventory, sortColumn, sortDirection]);
-
-  const handleAddTag = () => {
-    if (newTag.trim() !== '') {
-      setNewItemTags([...newItemTags, newTag.trim()]);
-      setNewTag('');
-    }
-  };
-
-  const handleRemoveTag = (tagToRemove: string) => {
-    setNewItemTags(newItemTags.filter(tag => tag !== tagToRemove));
-  };
-
-  const handleEditAddTag = () => {
-    if (editNewTag.trim() !== '') {
-      setEditedItemTags([...editedItemTags, editNewTag.trim()]);
-      setEditNewTag('');
-    }
-  };
-
-  const handleEditRemoveTag = (tagToRemove: string) => {
-    setEditedItemTags(editedItemTags.filter(tag => tag !== tagToRemove));
-  };
 
   return (
     <div className="container mx-auto p-4">
@@ -335,9 +313,9 @@ const InventoryPage: React.FC = () => {
               수량
               {sortColumn === 'quantity' && (sortDirection === 'asc' ? <ArrowUp className="inline ml-1 h-4 w-4" /> : <ArrowDown className="inline ml-1 h-4 w-4" />)}
             </TableHead>
-            <TableHead onClick={() => handleSort('tags')} className="cursor-pointer">
+            <TableHead onClick={() => handleSort('tag')} className="cursor-pointer">
               태그
-              {sortColumn === 'tags' && (sortDirection === 'asc' ? <ArrowUp className="inline ml-1 h-4 w-4" /> : <ArrowDown className="inline ml-1 h-4 w-4" />)}
+              {sortColumn === 'tag' && (sortDirection === 'asc' ? <ArrowUp className="inline ml-1 h-4 w-4" /> : <ArrowDown className="inline ml-1 h-4 w-4" />)}
             </TableHead>
             <TableHead className="text-right">작업</TableHead>
           </TableRow>
@@ -348,12 +326,7 @@ const InventoryPage: React.FC = () => {
               <TableCell>{item.name} {realTimeChanges[item.id] !== 0 && (<span className={realTimeChanges[item.id] > 0 ? "text-positive" : "text-accent"}>({realTimeChanges[item.id] > 0 ? "+" : ""}{realTimeChanges[item.id]})</span>)}</TableCell>
               <TableCell>{item.quantity}</TableCell>
               <TableCell>
-                {item.tags.map((tag, index) => (
-                  <span key={index}>
-                    {tag}
-                    {index < item.tags.length - 1 && ", "}
-                  </span>
-                ))}
+                {item.tag}
               </TableCell>
               <TableCell className="text-right">
                 <Button variant="secondary" size="icon" onClick={() => handleQuantityChange(item.id, 1)}><Plus className="h-4 w-4" /></Button>
@@ -395,30 +368,10 @@ const InventoryPage: React.FC = () => {
               />
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="editTag" className="text-right">
+              <Label htmlFor="tag" className="text-right">
                 태그
               </Label>
-              <div className="col-span-3">
-                <div className="flex gap-2 items-center">
-                  <Input
-                    type="text"
-                    id="editTag"
-                    placeholder="새 태그"
-                    value={editNewTag}
-                    onChange={e => setEditNewTag(e.target.value)}
-                  />
-                  <Button type="button" onClick={handleEditAddTag}>태그 추가</Button>
-                </div>
-                {editedItemTags.length > 0 && (
-                  <div className="flex gap-2 mt-2">
-                    {editedItemTags.map(tag => (
-                      <Button key={tag} variant="secondary" size="sm" onClick={() => handleEditRemoveTag(tag)}>
-                        {tag} <Trash2 className="ml-2 h-4 w-4" />
-                      </Button>
-                    ))}
-                  </div>
-                )}
-              </div>
+              <Input id="tag" value={editedItemTag} onChange={(e) => setEditedItemTag(e.target.value)} className="col-span-3" />
             </div>
           </div>
           <DialogFooter>
@@ -458,27 +411,16 @@ const InventoryPage: React.FC = () => {
             value={newItemQuantity === 0 ? '' : newItemQuantity.toString()}
             onChange={e => setNewItemQuantity(Number(e.target.value))}
           />
-          <Button onClick={handleAddItem}><Plus className="mr-2" /> 품목 추가</Button>
         </div>
         <div className="flex gap-2 items-center">
           <Input
             type="text"
             placeholder="태그"
-            value={newTag}
-            onChange={e => setNewTag(e.target.value)}
-            className="w-[calc(50% - 40px)]"
+            value={newItemTag}
+            onChange={e => setNewItemTag(e.target.value)}
           />
-          <Button type="button" onClick={handleAddTag}><Plus className="mr-2" />태그 추가</Button>
+          <Button onClick={handleAddItem}><Plus className="mr-2" /> 품목 추가</Button>
         </div>
-        {newItemTags.length > 0 && (
-          <div className="flex gap-2">
-            {newItemTags.map(tag => (
-              <Button key={tag} variant="secondary" size="sm" onClick={() => handleRemoveTag(tag)}>
-                {tag} <Trash2 className="ml-2 h-4 w-4" />
-              </Button>
-            ))}
-          </div>
-        )}
       </div>
     </div>
   );
