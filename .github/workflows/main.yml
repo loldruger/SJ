@@ -24,10 +24,10 @@ jobs:
       # React, Vue, Angular 등 빌드가 필요한 프레임워크를 사용하거나,
       # TypeScript로 작성된 Functions가 있다면 빌드 단계를 추가해야 합니다.
       # 예시: npm install 및 npm run build 실행
-      # - name: Install Dependencies and Build
-      #   run: |
-      #     npm install
-      #     npm run build # package.json에 정의된 빌드 스크립트 이름 사용
+      - name: Install Dependencies and Build
+        run: |
+          npm ci
+          npm run build # package.json에 정의된 빌드 스크립트 이름 사용
       #   # working-directory: ./frontend # 프로젝트가 하위 폴더에 있다면 지정
 
       # --- 선택: Functions 의존성 설치 ---
