@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -20,6 +20,7 @@ import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import * as Papa from 'papaparse';
 import { IDBPDatabase, openDB } from 'idb';
+import { cn } from "@/lib/utils";
 
 interface InventoryItem {
   id: string;
@@ -73,6 +74,7 @@ const InventoryPage: React.FC = () => {
   const [realTimeChanges, setRealTimeChanges] = useState<{ [itemId: string]: number }>({});
   const [sortColumn, setSortColumn] = useState<keyof InventoryItem | null>('name');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
+  const itemNameInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -103,14 +105,14 @@ const InventoryPage: React.FC = () => {
     const trimmedNewItemName = newItemName.trim();
     const trimmedNewItemTag = newItemTag?.trim();
 
-    const existingItemIndex = inventory.findIndex(item =>
-      item.name === trimmedNewItemName &&
-      (item.tag === trimmedNewItemTag || (item.tag === undefined && trimmedNewItemTag === undefined || trimmedNewItemTag === ''))
+    // Check if item with same name and tag already exists
+    const existingItemIndex = inventory.findIndex(
+      item => item.name === trimmedNewItemName &&
+             ((newItemTag === undefined || newItemTag === '') ? (item.tag === undefined || item.tag === '') : item.tag === trimmedNewItemTag)
     );
 
     if (existingItemIndex !== -1) {
       setInventory(prevInventory => {
-        if (!Array.isArray(prevInventory)) return prevInventory;
         return prevInventory.map((item, index) =>
           index === existingItemIndex
             ? { ...item, quantity: item.quantity + newItemQuantity }
@@ -121,7 +123,6 @@ const InventoryPage: React.FC = () => {
         ...prevChanges,
         [inventory[existingItemIndex].id]: (prevChanges[inventory[existingItemIndex].id] || 0) + newItemQuantity,
       }));
-
       toast({
         title: "Success",
         description: `${newItemName} ${newItemTag ? `(${newItemTag})` : ''} quantity updated.`,
@@ -134,8 +135,7 @@ const InventoryPage: React.FC = () => {
         tag: trimmedNewItemTag,
       };
       setInventory(prevInventory => {
-        if (!Array.isArray(prevInventory)) return [newItem];
-        return [...prevInventory, newItem];
+        return Array.isArray(prevInventory) ? [...prevInventory, newItem] : [newItem];
       });
       setRealTimeChanges(prevChanges => ({
         ...prevChanges,
@@ -150,35 +150,34 @@ const InventoryPage: React.FC = () => {
     setNewItemName('');
     setNewItemQuantity(0);
     setNewItemTag('');
+    if (itemNameInputRef.current) {
+      itemNameInputRef.current.focus();
+    }
   };
 
   const handleEditItem = (item: InventoryItem) => {
     setSelectedItem(item);
+    setIsEditDialogOpen(true);
     setEditedItemName(item.name);
     setEditedItemQuantity(item.quantity);
-    setEditedItemTag(item.tag);
-    setIsEditDialogOpen(true);
+    setEditedItemTag(item.tag || '');
   };
 
   const handleUpdateItem = () => {
     if (!selectedItem) return;
 
     setInventory(prevInventory => {
-      if (!Array.isArray(prevInventory)) return prevInventory;
       return prevInventory.map(item =>
-        item.id === selectedItem.id ? {
-          ...item,
-          name: editedItemName,
-          quantity: editedItemQuantity,
-          tag: editedItemTag,
-        } : item
+        item.id === selectedItem.id
+          ? { ...item, name: editedItemName, quantity: editedItemQuantity, tag: editedItemTag }
+          : item
       );
     });
     setIsEditDialogOpen(false);
     setSelectedItem(null);
     toast({
       title: "Success",
-      description: `${editedItemName} updated.`,
+      description: `${editedItemName} updated successfully.`,
     });
   };
 
@@ -189,20 +188,14 @@ const InventoryPage: React.FC = () => {
 
   const confirmDeleteItem = () => {
     if (!selectedItem) return;
-
     setInventory(prevInventory => {
-      if (!Array.isArray(prevInventory)) return prevInventory;
       return prevInventory.filter(item => item.id !== selectedItem.id);
     });
     setIsDeleteConfirmationOpen(false);
     setSelectedItem(null);
-    setRealTimeChanges(prevChanges => {
-      const { [selectedItem.id]: removed, ...rest } = prevChanges;
-      return rest;
-    });
     toast({
       title: "Success",
-      description: `${selectedItem.name} deleted.`,
+      description: "Item deleted successfully.",
     });
   };
 
@@ -211,20 +204,13 @@ const InventoryPage: React.FC = () => {
       if (!Array.isArray(prevInventory)) {
         return prevInventory;
       }
-
       const itemToUpdate = prevInventory.find(item => item.id === itemId);
-      if (!itemToUpdate) return prevInventory;
 
-      let updatedQuantity = itemToUpdate.quantity + change;
-
-      if (updatedQuantity < 0) {
-        toast({
-          title: "Error",
-          description: "품목 수량은 0 미만이 될 수 없습니다.",
-          variant: "destructive",
-        });
+      if (!itemToUpdate) {
         return prevInventory;
       }
+
+      let updatedQuantity = itemToUpdate.quantity + change;
 
       // Update real-time changes
       setRealTimeChanges(prevChanges => {
@@ -244,50 +230,31 @@ const InventoryPage: React.FC = () => {
   };
 
   const handleImportCSV = (file: File | null) => {
-    if (!file) {
-      toast({
-        title: "Error",
-        description: "No file selected.",
-        variant: "destructive",
-      });
-      return;
-    }
+    if (!file) return;
 
     Papa.parse(file, {
       header: true,
       complete: (results) => {
-        const importedData = results.data as any[];
-        if (importedData && importedData.length > 0) {
-          const newInventoryItems: InventoryItem[] = importedData.map(item => ({
+        if (results.data && Array.isArray(results.data)) {
+          const importedInventory: InventoryItem[] = results.data.map((row: any) => ({
             id: Date.now().toString(),
-            name: item.name || 'Unknown',
-            quantity: parseInt(item.quantity || '0', 10),
-            tag: item.tag || '',
+            name: row.name || 'Unknown',
+            quantity: Number(row.quantity) || 0,
+            tag: row.tag || '',
           }));
           setInventory(prevInventory => {
-            if (Array.isArray(prevInventory)) {
-              return [...prevInventory, ...newInventoryItems];
-            } else {
-              return newInventoryItems;
-            }
-
+            return Array.isArray(prevInventory) ? [...prevInventory, ...importedInventory] : importedInventory;
           });
           toast({
             title: "Success",
-            description: "CSV file imported successfully.",
-          });
-        } else {
-          toast({
-            title: "Error",
-            description: "Failed to import CSV file.",
-            variant: "destructive",
+            description: "CSV imported successfully.",
           });
         }
       },
       error: () => {
         toast({
           title: "Error",
-          description: "Error parsing CSV file.",
+          description: "Error importing CSV file.",
           variant: "destructive",
         });
       }
@@ -295,26 +262,30 @@ const InventoryPage: React.FC = () => {
   };
 
   const handleExportCSV = () => {
-    const csvData = Papa.unparse({
-      fields: ["id", "name", "quantity", "tag"],
-      data: inventory.map(item => ({
-        ...item,
-      })),
+    const csv = Papa.unparse({
+      fields: ["name", "quantity", "tag"],
+      data: inventory.map(item => ({ name: item.name, quantity: item.quantity, tag: item.tag })),
     });
 
-    const blob = new Blob([csvData], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement("a");
-    const url = URL.createObjectURL(blob);
-    link.setAttribute("href", url);
-    link.setAttribute("download", "inventory.csv");
-    link.style.visibility = 'hidden';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'inventory.csv';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    window.URL.revokeObjectURL(url);
     toast({
       title: "Success",
-      description: "Inventory exported to CSV.",
+      description: "CSV exported successfully.",
     });
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      handleAddItem();
+    }
   };
 
   const handleSort = (column: keyof InventoryItem) => {
@@ -327,33 +298,24 @@ const InventoryPage: React.FC = () => {
   };
 
   const sortedInventory = useMemo(() => {
-    if (!Array.isArray(inventory)) return [];
-    if (!inventory) return [];
+    if (!inventory || !Array.isArray(inventory)) return [];
     if (!sortColumn) return inventory;
 
     return [...inventory].sort((a, b) => {
       const direction = sortDirection === 'asc' ? 1 : -1;
 
       if (typeof a[sortColumn] === 'number' && typeof b[sortColumn] === 'number') {
-        return direction * ((a[sortColumn] || 0) - (b[sortColumn] || 0));
+        return (a[sortColumn] - b[sortColumn]) * direction;
       }
 
-      const aValue = String(a[sortColumn] || '').toUpperCase();
-      const bValue = String(b[sortColumn] || '').toUpperCase();
-
-      if (aValue < bValue) {
-        return -1 * direction;
-      }
-      if (aValue > bValue) {
-        return 1 * direction;
-      }
-      return 0;
+      const aValue = (a[sortColumn] as string)?.toString() || '';
+      const bValue = (b[sortColumn] as string)?.toString() || '';
+      return aValue.localeCompare(bValue) * direction;
     });
   }, [inventory, sortColumn, sortDirection]);
 
   const totalQuantityByName = useMemo(() => {
     if (!inventory || !Array.isArray(inventory)) return {};
-
     return inventory.reduce((acc: { [name: string]: number }, item) => {
       const key = item.name;
       acc[key] = (acc[key] || 0) + item.quantity;
@@ -361,18 +323,12 @@ const InventoryPage: React.FC = () => {
     }, {});
   }, [inventory]);
 
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter') {
-      handleAddItem();
-    }
-  };
-
   return (
     <div className="container mx-auto p-4">
       <h1 className="text-2xl font-bold mb-4">스마트 재고</h1>
 
       {/* Data Manipulation Section */}
-      <div className="mb-4 flex gap-2">
+      <div className="flex space-x-4 mb-4">
         <label htmlFor="importCSV" className="flex items-center space-x-2 rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50">
           <FileInput className="h-4 w-4" />
           <span>CSV 가져오기</span>
@@ -380,11 +336,11 @@ const InventoryPage: React.FC = () => {
             type="file"
             id="importCSV"
             accept=".csv"
-            onChange={(e) => handleImportCSV(e.target.files ? e.target.files[0] : null)}
             className="hidden"
+            onChange={(e) => handleImportCSV(e.target.files ? e.target.files[0] : null)}
           />
         </label>
-        <Button variant="outline" onClick={handleExportCSV}><FileText className="mr-2" /> 내보내기 CSV</Button>
+        <Button variant="outline" onClick={handleExportCSV}><FileText className="h-4 w-4 mr-2" />CSV 내보내기</Button>
       </div>
 
       {/* Inventory Table */}
@@ -392,17 +348,14 @@ const InventoryPage: React.FC = () => {
         <TableCaption>재고 현황</TableCaption>
         <TableHeader>
           <TableRow>
-            <TableHead onClick={() => handleSort('name')} className="cursor-pointer">
-              이름
-              {sortColumn === 'name' && (sortDirection === 'asc' ? <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="inline ml-1 h-4 w-4"><path d="m3 7 9-5 9 5" /></svg> : <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="inline ml-1 h-4 w-4"><path d="m21 17-9 5-9-5" /></svg>)}
+            <TableHead onClick={() => handleSort('name')}>
+              품목 이름
             </TableHead>
-            <TableHead onClick={() => handleSort('quantity')} className="cursor-pointer">
+            <TableHead onClick={() => handleSort('quantity')}>
               수량
-              {sortColumn === 'quantity' && (sortDirection === 'asc' ? <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="inline ml-1 h-4 w-4"><path d="m3 7 9-5 9 5" /></svg> : <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="inline ml-1 h-4 w-4"><path d="m21 17-9 5-9-5" /></svg>)}
             </TableHead>
-            <TableHead onClick={() => handleSort('tag')} className="cursor-pointer">
+            <TableHead onClick={() => handleSort('tag')}>
               태그
-              {sortColumn === 'tag' && (sortDirection === 'asc' ? <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="inline ml-1 h-4 w-4"><path d="m3 7 9-5 9 5" /></svg> : <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="inline ml-1 h-4 w-4"><path d="m21 17-9 5-9-5" /></svg>)}
             </TableHead>
             <TableHead className="text-right">작업</TableHead>
           </TableRow>
@@ -421,9 +374,7 @@ const InventoryPage: React.FC = () => {
                     </span>
                   )}
                 </TableCell>
-                <TableCell>
-                  {item.quantity}
-                </TableCell>
+                <TableCell>{item.quantity}</TableCell>
                 <TableCell>{item.tag}</TableCell>
                 <TableCell className="text-right">
                   <Button
@@ -443,14 +394,14 @@ const InventoryPage: React.FC = () => {
                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4"><line x1="5" x2="19" y1="12" y2="12" /></svg>
                   </Button>
                   <Button
-                    variant="outline"
+                    variant="ghost"
                     size="icon"
                     onClick={() => handleEditItem(item)}
                   >
                     <Edit className="h-4 w-4" />
                   </Button>
                   <Button
-                    variant="destructive"
+                    variant="ghost"
                     size="icon"
                     onClick={() => handleDeleteItem(item)}
                   >
@@ -463,34 +414,12 @@ const InventoryPage: React.FC = () => {
         </TableBody>
       </Table>
 
-      {/* Item Name Specific Quantity */}
-      <div className="mt-4 rounded-md shadow-sm p-4 bg-secondary">
-        <h2 className="text-lg font-semibold mb-2">품목별 총 수량</h2>
-        <Table className="rounded-md shadow-sm">
-          <TableHeader>
-            <TableRow>
-              <TableHead>이름</TableHead>
-              <TableHead>총 수량</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {totalQuantityByName && Object.entries(totalQuantityByName).map(([name, quantity]) => (
-              <TableRow key={name}>
-                <TableCell>{name}</TableCell>
-                <TableCell>{quantity}</TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </div>
-
-      {/* Edit Dialog */}
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-        <DialogContent>
+        <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
-            <DialogTitle>품목 편집</DialogTitle>
+            <DialogTitle>Edit Item</DialogTitle>
             <DialogDescription>
-              품목 정보를 수정하십시오.
+              수정할 항목의 이름, 수량, 태그를 변경하세요.
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
@@ -498,7 +427,13 @@ const InventoryPage: React.FC = () => {
               <Label htmlFor="name" className="text-right">
                 이름
               </Label>
-              <Input id="name" value={editedItemName} onChange={(e) => setEditedItemName(e.target.value)} className="col-span-3" />
+              <Input
+                type="text"
+                id="name"
+                value={editedItemName}
+                onChange={(e) => setEditedItemName(e.target.value)}
+                className="col-span-3"
+              />
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
               <Label htmlFor="quantity" className="text-right">
@@ -507,7 +442,7 @@ const InventoryPage: React.FC = () => {
               <Input
                 type="number"
                 id="quantity"
-                value={editedItemQuantity === 0 ? '' : editedItemQuantity.toString()}
+                value={editedItemQuantity}
                 onChange={(e) => setEditedItemQuantity(Number(e.target.value))}
                 className="col-span-3"
               />
@@ -516,7 +451,13 @@ const InventoryPage: React.FC = () => {
               <Label htmlFor="tag" className="text-right">
                 태그
               </Label>
-              <Input id="tag" value={editedItemTag} onChange={(e) => setEditedItemTag(e.target.value)} className="col-span-3" />
+              <Input
+                type="text"
+                id="tag"
+                value={editedItemTag || ''}
+                onChange={(e) => setEditedItemTag(e.target.value)}
+                className="col-span-3"
+              />
             </div>
           </div>
           <DialogFooter>
@@ -525,13 +466,12 @@ const InventoryPage: React.FC = () => {
         </DialogContent>
       </Dialog>
 
-      {/* Delete Confirmation Dialog */}
       <AlertDialog open={isDeleteConfirmationOpen} onOpenChange={setIsDeleteConfirmationOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>삭제 확인</AlertDialogTitle>
             <AlertDialogDescription>
-              정말로 이 품목을 삭제하시겠습니까?
+              선택한 항목을 삭제하시겠습니까?
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -550,6 +490,7 @@ const InventoryPage: React.FC = () => {
               placeholder="품목 이름"
               value={newItemName}
               onChange={e => setNewItemName(e.target.value)}
+              ref={itemNameInputRef}
             />
             <Input
               type="number"
