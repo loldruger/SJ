@@ -15,10 +15,9 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-  AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Label } from "@/components/ui/label";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter, DialogClose } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import * as Papa from 'papaparse';
 
@@ -308,7 +307,7 @@ const InventoryPage: React.FC = () => {
       </div>
 
       {/* Inventory Table */}
-      <Table>
+      <Table className="rounded-md shadow-sm">
         <TableCaption>재고 현황</TableCaption>
         <TableHeader>
           <TableRow>
@@ -347,7 +346,7 @@ const InventoryPage: React.FC = () => {
       </Table>
 
       {/* Item Name Specific Quantity */}
-      <div className="mt-4">
+      <div className="mt-4 rounded-md shadow-sm p-4 bg-secondary">
         <h2 className="text-lg font-semibold mb-2">품목별 총 수량</h2>
         <ul>
           {Object.entries(totalQuantityByName).map(([name, quantity]) => (
@@ -416,29 +415,30 @@ const InventoryPage: React.FC = () => {
       </AlertDialog>
 
       {/* Add Item Section */}
-      <div className="mt-4 flex flex-col gap-2">
-        <div className="flex gap-2 items-center">
-          <Input
-            type="text"
-            placeholder="품목 이름"
-            value={newItemName}
-            onChange={e => setNewItemName(e.target.value)}
-          />
-          <Input
-            type="number"
-            placeholder="수량"
-            value={newItemQuantity === 0 ? '' : newItemQuantity.toString()}
-            onChange={e => setNewItemQuantity(Number(e.target.value))}
-          />
-           <Input
-            type="text"
-            placeholder="태그"
-            value={newItemTag || ''}
-            onChange={e => setNewItemTag(e.target.value)}
-          />
-         
+      <div className="mt-4">
+        <div className="flex flex-col gap-2">
+          <div className="flex gap-2 items-center">
+            <Input
+              type="text"
+              placeholder="품목 이름"
+              value={newItemName}
+              onChange={e => setNewItemName(e.target.value)}
+            />
+            <Input
+              type="number"
+              placeholder="수량"
+              value={newItemQuantity === 0 ? '' : newItemQuantity.toString()}
+              onChange={e => setNewItemQuantity(Number(e.target.value))}
+            />
+            <Input
+              type="text"
+              placeholder="태그"
+              value={newItemTag || ''}
+              onChange={e => setNewItemTag(e.target.value)}
+            />
+          </div>
+          <Button onClick={handleAddItem} className="w-full"><Plus className="mr-2" /> 품목 추가</Button>
         </div>
-        <Button onClick={handleAddItem} className="w-full"><Plus className="mr-2" /> 품목 추가</Button>
       </div>
     </div>
   );
