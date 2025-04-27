@@ -1,0 +1,45 @@
+# .github/workflows/main.yml
+
+name: Deploy to Firebase Hosting on Push
+
+# main 브랜치에 푸시될 때마다 이 워크플로우를 실행합니다.
+on:
+  push:
+    branches:
+      - main # 다른 브랜치 이름을 사용한다면 변경하세요 (e.g., master)
+
+jobs:
+  build_and_deploy:
+    runs-on: ubuntu-latest # 실행 환경 지정
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4 # 저장소 코드를 워크플로우 환경으로 가져옵니다.
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4 # Node.js 환경 설정 (Firebase CLI 실행 및 빌드에 필요)
+        with:
+          node-version: '20' # 프로젝트에 맞는 Node.js 버전 지정 (e.g., 18, 20)
+
+      # --- 선택: 빌드 단계 ---
+      # React, Vue, Angular 등 빌드가 필요한 프레임워크를 사용하거나,
+      # TypeScript로 작성된 Functions가 있다면 빌드 단계를 추가해야 합니다.
+      # 예시: npm install 및 npm run build 실행
+      # - name: Install Dependencies and Build
+      #   run: |
+      #     npm install
+      #     npm run build # package.json에 정의된 빌드 스크립트 이름 사용
+      #   # working-directory: ./frontend # 프로젝트가 하위 폴더에 있다면 지정
+
+      # --- 선택: Functions 의존성 설치 ---
+      # Cloud Functions를 사용하고 functions 폴더가 있다면 해당 폴더의 의존성 설치
+      # - name: Install Functions Dependencies
+      #   run: npm install
+      #   working-directory: ./functions # functions 폴더 경로 지정
+
+      - name: Deploy to Firebase
+        uses: FirebaseExtended/action-hosting-deploy@v0 # Firebase 배포 액션 사용
+        with:
+          repoToken: '${{ secrets.GITHUB_TOKEN }}' # GitHub 토큰 (자동 제공)
+          firebaseServiceAccount: '${{ secrets.FIREBASE_SERVICE_ACCOUNT_SMART_JAEGO }}' # 2단계에서 만든 GitHub Secret 이름!
+          projectId: smart-jaego # Firebase 프로젝트 ID 명시
+          channelId: live # 'live' 채널에 배포하여 기본 .web.app URL 사용
