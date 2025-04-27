@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -18,7 +18,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Label } from "@/components/ui/label";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter, DialogClose } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import * as Papa from 'papaparse';
 
@@ -280,9 +280,12 @@ const InventoryPage: React.FC = () => {
     });
   }, [inventory, sortColumn, sortDirection]);
 
-    const totalQuantity = React.useMemo(() => {
-        return inventory.reduce((acc, item) => acc + item.quantity, 0);
-    }, [inventory]);
+  const totalQuantityByName = useMemo(() => {
+    return inventory.reduce((acc: { [name: string]: number }, item) => {
+      acc[item.name] = (acc[item.name] || 0) + item.quantity;
+      return acc;
+    }, {});
+  }, [inventory]);
 
   return (
     <div className="container mx-auto p-4">
@@ -303,9 +306,6 @@ const InventoryPage: React.FC = () => {
         </label>
         <Button variant="outline" onClick={handleExportCSV}><FileText className="mr-2" /> 내보내기 CSV</Button>
       </div>
-        <div className="mb-4">
-            총 재고 수량: {totalQuantity}
-        </div>
 
       {/* Inventory Table */}
       <Table>
@@ -345,6 +345,18 @@ const InventoryPage: React.FC = () => {
           ))}
         </TableBody>
       </Table>
+
+      {/* Item Name Specific Quantity */}
+      <div className="mt-4">
+        <h2 className="text-lg font-semibold mb-2">품목별 총 수량</h2>
+        <ul>
+          {Object.entries(totalQuantityByName).map(([name, quantity]) => (
+            <li key={name} className="mb-1">
+              {name}: {quantity}
+            </li>
+          ))}
+        </ul>
+      </div>
 
       {/* Edit Dialog */}
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
