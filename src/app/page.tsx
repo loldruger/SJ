@@ -43,7 +43,7 @@ const saveInventoryToDB = async (inventory: InventoryItem[]) => {
   const db = await getDB();
   const tx = db.transaction(storeName, 'readwrite');
   const store = tx.objectStore(storeName);
-  if (inventory) {
+  if (inventory && Array.isArray(inventory)) {
     inventory.forEach(item => store.put(item));
     await tx.done;
   }
@@ -99,16 +99,15 @@ const InventoryPage: React.FC = () => {
     }
 
     const existingItemIndex = inventory.findIndex(
-      item => item.name === newItemName &&
-        ((newItemTag === undefined || newItemTag === '') ? (item.tag === undefined || item.tag === '') : item.tag === newItemTag)
+      item => item.name === newItemName.trim() &&
+        ((newItemTag === undefined || newItemTag === '') ? (item.tag === undefined || item.tag === '') : item.tag === newItemTag.trim())
     );
 
     if (existingItemIndex !== -1) {
       setInventory(prevInventory => {
-        const updatedInventory = prevInventory.map((item, index) =>
+        return prevInventory.map((item, index) =>
           index === existingItemIndex ? { ...item, quantity: item.quantity + newItemQuantity } : item
         );
-        return updatedInventory;
       });
 
       toast({
@@ -118,11 +117,16 @@ const InventoryPage: React.FC = () => {
     } else {
       const newItem: InventoryItem = {
         id: Date.now().toString(),
-        name: newItemName,
+        name: newItemName.trim(),
         quantity: newItemQuantity,
-        tag: newItemTag,
+        tag: newItemTag?.trim(),
       };
-      setInventory(prevInventory => [...prevInventory, newItem]);
+      setInventory(prevInventory => {
+        if (!Array.isArray(prevInventory)) {
+          return [newItem];
+        }
+        return [...prevInventory, newItem];
+      });
       toast({
         title: "Success",
         description: `${newItemName} ${newItemTag ? `(${newItemTag})` : ''} added to inventory.`,
@@ -146,7 +150,7 @@ const InventoryPage: React.FC = () => {
     if (!selectedItem) return;
 
     setInventory(prevInventory => {
-      const updatedInventory = prevInventory.map(item =>
+      return prevInventory.map(item =>
         item.id === selectedItem.id ? {
           ...item,
           name: editedItemName,
@@ -154,7 +158,6 @@ const InventoryPage: React.FC = () => {
           tag: editedItemTag,
         } : item
       );
-      return updatedInventory;
     });
     setIsEditDialogOpen(false);
     setSelectedItem(null);
@@ -173,8 +176,7 @@ const InventoryPage: React.FC = () => {
     if (!selectedItem) return;
 
     setInventory(prevInventory => {
-      const updatedInventory = prevInventory.filter(item => item.id !== selectedItem.id);
-      return updatedInventory;
+      return prevInventory.filter(item => item.id !== selectedItem.id);
     });
     setIsDeleteConfirmationOpen(false);
     setSelectedItem(null);
@@ -186,6 +188,10 @@ const InventoryPage: React.FC = () => {
 
   const handleQuantityChange = (itemId: string, change: number) => {
     setInventory(prevInventory => {
+      if (!Array.isArray(prevInventory)) {
+        return prevInventory;
+      }
+
       const itemToUpdate = prevInventory.find(item => item.id === itemId);
       if (!itemToUpdate) return prevInventory;
 
@@ -233,7 +239,12 @@ const InventoryPage: React.FC = () => {
             quantity: parseInt(item.quantity || '0', 10),
             tag: item.tag || '',
           }));
-          setInventory(prevInventory => [...prevInventory, ...newInventoryItems]);
+          setInventory(prevInventory => {
+            if (!Array.isArray(prevInventory)) {
+              return newInventoryItems;
+            }
+            return [...prevInventory, ...newInventoryItems];
+          });
           toast({
             title: "Success",
             description: "CSV file imported successfully.",
@@ -289,7 +300,7 @@ const InventoryPage: React.FC = () => {
   };
 
   const sortedInventory = useMemo(() => {
-    if (!inventory) return [];
+    if (!inventory || !Array.isArray(inventory)) return [];
     if (!sortColumn) return inventory;
 
     return [...inventory].sort((a, b) => {
@@ -313,7 +324,7 @@ const InventoryPage: React.FC = () => {
   }, [inventory, sortColumn, sortDirection]);
 
   const totalQuantityByName = useMemo(() => {
-    if (!inventory) return {};
+    if (!inventory || !Array.isArray(inventory)) return {};
     return inventory.reduce((acc: { [name: string]: number }, item) => {
       const key = item.name;
       acc[key] = (acc[key] || 0) + item.quantity;
