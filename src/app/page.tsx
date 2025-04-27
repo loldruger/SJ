@@ -43,9 +43,9 @@ const saveInventoryToDB = async (inventory: InventoryItem[]) => {
   const db = await getDB();
   const tx = db.transaction(storeName, 'readwrite');
   const store = tx.objectStore(storeName);
-  if (inventory && Array.isArray(inventory)) {
-    inventory.forEach(item => store.put(item));
-    await tx.done;
+  if (Array.isArray(inventory)) {
+      inventory.forEach(item => store.put(item));
+      await tx.done;
   }
   db.close();
 };
@@ -98,17 +98,26 @@ const InventoryPage: React.FC = () => {
       return;
     }
 
-    const existingItemIndex = inventory.findIndex(
-      item => item.name === newItemName.trim() &&
-        ((newItemTag === undefined || newItemTag === '') ? (item.tag === undefined || item.tag === '') : item.tag === newItemTag.trim())
+    const trimmedNewItemName = newItemName.trim();
+    const trimmedNewItemTag = newItemTag?.trim();
+
+    const existingItemIndex = inventory.findIndex(item =>
+      item.name === trimmedNewItemName &&
+      (item.tag === trimmedNewItemTag || (item.tag === undefined && trimmedNewItemTag === ''))
     );
 
     if (existingItemIndex !== -1) {
       setInventory(prevInventory => {
         return prevInventory.map((item, index) =>
-          index === existingItemIndex ? { ...item, quantity: item.quantity + newItemQuantity } : item
+          index === existingItemIndex
+            ? { ...item, quantity: item.quantity + newItemQuantity }
+            : item
         );
       });
+        setRealTimeChanges(prevChanges => ({
+            ...prevChanges,
+            [inventory[existingItemIndex].id]: (prevChanges[inventory[existingItemIndex].id] || 0) + newItemQuantity,
+        }));
 
       toast({
         title: "Success",
@@ -117,16 +126,17 @@ const InventoryPage: React.FC = () => {
     } else {
       const newItem: InventoryItem = {
         id: Date.now().toString(),
-        name: newItemName.trim(),
+        name: trimmedNewItemName,
         quantity: newItemQuantity,
-        tag: newItemTag?.trim(),
+        tag: trimmedNewItemTag,
       };
       setInventory(prevInventory => {
-        if (!Array.isArray(prevInventory)) {
-          return [newItem];
-        }
-        return [...prevInventory, newItem];
+        return Array.isArray(prevInventory) ? [...prevInventory, newItem] : [newItem];
       });
+        setRealTimeChanges(prevChanges => ({
+            ...prevChanges,
+            [newItem.id]: (prevChanges[newItem.id] || 0) + newItemQuantity,
+        }));
       toast({
         title: "Success",
         description: `${newItemName} ${newItemTag ? `(${newItemTag})` : ''} added to inventory.`,
@@ -180,6 +190,10 @@ const InventoryPage: React.FC = () => {
     });
     setIsDeleteConfirmationOpen(false);
     setSelectedItem(null);
+      setRealTimeChanges(prevChanges => {
+          const { [selectedItem.id]: removed, ...rest } = prevChanges;
+          return rest;
+      });
     toast({
       title: "Success",
       description: `${selectedItem.name} deleted.`,
@@ -187,6 +201,7 @@ const InventoryPage: React.FC = () => {
   };
 
   const handleQuantityChange = (itemId: string, change: number) => {
+
     setInventory(prevInventory => {
       if (!Array.isArray(prevInventory)) {
         return prevInventory;
@@ -195,7 +210,7 @@ const InventoryPage: React.FC = () => {
       const itemToUpdate = prevInventory.find(item => item.id === itemId);
       if (!itemToUpdate) return prevInventory;
 
-      const updatedQuantity = itemToUpdate.quantity + change;
+      let updatedQuantity = itemToUpdate.quantity + change;
 
       if (updatedQuantity < 0) {
         toast({
@@ -207,11 +222,16 @@ const InventoryPage: React.FC = () => {
       }
 
       // Update real-time changes
-      setRealTimeChanges(prevChanges => ({
-        ...prevChanges,
-        [itemId]: (prevChanges[itemId] || 0) + change,
-      }));
+      setRealTimeChanges(prevChanges => {
+        const currentChange = prevChanges[itemId] || 0;
+        return {
+          ...prevChanges,
+          [itemId]: currentChange + change,
+        };
+      });
 
+      // Update inventory
+      updatedQuantity = Math.max(0, updatedQuantity); // Ensure quantity doesn't go below 0
       return prevInventory.map(item =>
         item.id === itemId ? { ...item, quantity: updatedQuantity } : item
       );
@@ -240,10 +260,12 @@ const InventoryPage: React.FC = () => {
             tag: item.tag || '',
           }));
           setInventory(prevInventory => {
-            if (!Array.isArray(prevInventory)) {
+            if (Array.isArray(prevInventory)) {
+              return [...prevInventory, ...newInventoryItems];
+            } else {
               return newInventoryItems;
             }
-            return [...prevInventory, ...newInventoryItems];
+
           });
           toast({
             title: "Success",
@@ -300,7 +322,8 @@ const InventoryPage: React.FC = () => {
   };
 
   const sortedInventory = useMemo(() => {
-    if (!inventory || !Array.isArray(inventory)) return [];
+      if (!Array.isArray(inventory)) return [];
+    if (!inventory) return [];
     if (!sortColumn) return inventory;
 
     return [...inventory].sort((a, b) => {
@@ -325,11 +348,12 @@ const InventoryPage: React.FC = () => {
 
   const totalQuantityByName = useMemo(() => {
     if (!inventory || !Array.isArray(inventory)) return {};
-    return inventory.reduce((acc: { [name: string]: number }, item) => {
-      const key = item.name;
-      acc[key] = (acc[key] || 0) + item.quantity;
-      return acc;
-    }, {});
+
+      return inventory.reduce((acc: { [name: string]: number }, item) => {
+          const key = item.name;
+          acc[key] = (acc[key] || 0) + item.quantity;
+          return acc;
+      }, {});
   }, [inventory]);
 
   return (
@@ -373,7 +397,7 @@ const InventoryPage: React.FC = () => {
           </TableRow>
         </TableHeader>
         <TableBody>
-          {sortedInventory.map((item) => {
+          {sortedInventory && sortedInventory.map((item) => {
             const change = realTimeChanges[item.id] || 0;
             return (
               <TableRow key={item.id}>
@@ -437,7 +461,7 @@ const InventoryPage: React.FC = () => {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {Object.entries(totalQuantityByName).map(([name, quantity]) => (
+            {totalQuantityByName && Object.entries(totalQuantityByName).map(([name, quantity]) => (
               <TableRow key={name}>
                 <TableCell>{name}</TableCell>
                 <TableCell>{quantity}</TableCell>
