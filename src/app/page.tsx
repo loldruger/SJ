@@ -280,6 +280,10 @@ const InventoryPage: React.FC = () => {
     });
   }, [inventory, sortColumn, sortDirection]);
 
+    const totalQuantity = React.useMemo(() => {
+        return inventory.reduce((acc, item) => acc + item.quantity, 0);
+    }, [inventory]);
+
   return (
     <div className="container mx-auto p-4">
       <h1 className="text-2xl font-bold mb-4">스마트 재고</h1>
@@ -299,6 +303,9 @@ const InventoryPage: React.FC = () => {
         </label>
         <Button variant="outline" onClick={handleExportCSV}><FileText className="mr-2" /> 내보내기 CSV</Button>
       </div>
+        <div className="mb-4">
+            총 재고 수량: {totalQuantity}
+        </div>
 
       {/* Inventory Table */}
       <Table>
