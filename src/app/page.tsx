@@ -51,7 +51,7 @@ const InventoryPage: React.FC = () => {
     // Load initial inventory data (can be replaced with API call)
     const initialData = [
       { id: "1", name: "바나나", quantity: 50, tags: ["신선"] },
-      { id: "2", name: "사과", quantity: 75, tags: ["맛있는", "빨간"] },
+      { id: "2", name: "사과", quantity: 75, tags: ["맛있는, 빨간"] },
       { id: "3", name: "우유", quantity: 30, tags: ["고소한"] },
     ];
     setInventory(initialData);
@@ -466,8 +466,9 @@ const InventoryPage: React.FC = () => {
             placeholder="태그"
             value={newTag}
             onChange={e => setNewTag(e.target.value)}
+            className="w-[calc(50% - 40px)]"
           />
-          <Button type="button" onClick={handleAddTag}>태그 추가</Button>
+          <Button type="button" onClick={handleAddTag}><Plus className="mr-2" />태그 추가</Button>
         </div>
         {newItemTags.length > 0 && (
           <div className="flex gap-2">
