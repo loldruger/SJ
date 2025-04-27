@@ -511,7 +511,7 @@ const InventoryPage: React.FC = () => {
       </AlertDialog>
 
       {/* Add Item Section */}
-      <div className="mt-4">
+      <div className="sticky bottom-0 bg-background p-4 border-t mt-4">
         <div className="flex flex-col gap-2">
           <div className="flex gap-2 items-center">
             <Input
