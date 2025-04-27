@@ -215,14 +215,13 @@ const InventoryPage: React.FC = () => {
   };
 
   const handleQuantityChange = (itemId: string, change: number) => {
-    setRealTimeChanges(prevChanges => {
-      const currentChange = prevChanges[itemId] || 0;
-      const newChange = currentChange + change;
-      return {
-        ...prevChanges,
-        [itemId]: newChange,
-      };
-    });
+     setRealTimeChanges(prevChanges => {
+       const currentChange = prevChanges[itemId] || 0;
+       return {
+         ...prevChanges,
+         [itemId]: currentChange + change,
+       };
+     });
     setInventory(prevInventory => {
        if (!Array.isArray(prevInventory)) {
          return prevInventory;
@@ -234,9 +233,7 @@ const InventoryPage: React.FC = () => {
       }
 
       let updatedQuantity = itemToUpdate.quantity + change;
-
-      // Update inventory
-      updatedQuantity = Math.max(0, updatedQuantity); // Ensure quantity doesn't go below 0
+      updatedQuantity = Math.max(0, updatedQuantity);
       return prevInventory.map(item =>
         item.id === itemId ? { ...item, quantity: updatedQuantity } : item
       );
@@ -341,43 +338,8 @@ const InventoryPage: React.FC = () => {
     <div className="container mx-auto p-4">
       <h1 className="text-2xl font-bold mb-4">스마트 재고</h1>
 
-       {/* Total Quantity by Item Name Table */}
-       <Table className="rounded-md shadow-sm mb-4">
-        <TableCaption>품목별 총 수량</TableCaption>
-        <TableHeader>
-          <TableRow>
-            <TableHead>품목 이름</TableHead>
-            <TableHead>총 수량</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {Object.entries(totalQuantityByName).map(([name, quantity]) => (
-            <TableRow key={name}>
-              <TableCell>{name}</TableCell>
-              <TableCell>{quantity}</TableCell>
-            </TableRow>
-          ))}
-        </TableBody>
-      </Table>
-
-      {/* Data Manipulation Section */}
-      <div className="flex space-x-4 mb-4">
-        <label htmlFor="importCSV" className="flex items-center space-x-2 rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50">
-          <FileInput className="h-4 w-4" />
-          <span>CSV 가져오기</span>
-          <input
-            type="file"
-            id="importCSV"
-            accept=".csv"
-            className="hidden"
-            onChange={(e) => handleImportCSV(e.target.files ? e.target.files[0] : null)}
-          />
-        </label>
-        <Button variant="outline" onClick={handleExportCSV}><FileText className="h-4 w-4 mr-2" />CSV 내보내기</Button>
-      </div>
-
-      {/* Inventory Table */}
-      <Table className="rounded-md shadow-sm">
+       {/* Inventory Table */}
+       <Table className="rounded-md shadow-sm">
         <TableCaption>재고 현황</TableCaption>
         <TableHeader>
           <TableRow>
@@ -447,6 +409,41 @@ const InventoryPage: React.FC = () => {
           })}
         </TableBody>
       </Table>
+
+       {/* Total Quantity by Item Name Table */}
+       <Table className="rounded-md shadow-sm mb-4">
+        <TableCaption>품목별 총 수량</TableCaption>
+        <TableHeader>
+          <TableRow>
+            <TableHead>품목 이름</TableHead>
+            <TableHead>총 수량</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {Object.entries(totalQuantityByName).map(([name, quantity]) => (
+            <TableRow key={name}>
+              <TableCell>{name}</TableCell>
+              <TableCell>{quantity}</TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+
+      {/* Data Manipulation Section */}
+      <div className="flex space-x-4 mb-4">
+        <label htmlFor="importCSV" className="flex items-center space-x-2 rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50">
+          <FileInput className="h-4 w-4" />
+          <span>CSV 가져오기</span>
+          <input
+            type="file"
+            id="importCSV"
+            accept=".csv"
+            className="hidden"
+            onChange={(e) => handleImportCSV(e.target.files ? e.target.files[0] : null)}
+          />
+        </label>
+        <Button variant="outline" onClick={handleExportCSV}><FileText className="h-4 w-4 mr-2" />CSV 내보내기</Button>
+      </div>
 
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
         <DialogContent className="sm:max-w-[425px]">
