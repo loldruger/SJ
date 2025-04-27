@@ -48,9 +48,9 @@ const InventoryPage: React.FC = () => {
   useEffect(() => {
     // Load initial inventory data (can be replaced with API call)
     const initialData = [
-      { id: "1", name: "바나나", quantity: 50, tag: "신선" },
-      { id: "2", name: "사과", quantity: 75, tag: "맛있는, 빨간" },
-      { id: "3", name: "우유", quantity: 30, tag: "고소한" },
+      { id: "1", name: "바나나", quantity: 50, tag: "19층" },
+      { id: "2", name: "사과", quantity: 75, tag: "12층" },
+      { id: "3", name: "우유", quantity: 30, tag: "냉장고" },
     ];
     setInventory(initialData);
   }, []);
@@ -411,16 +411,15 @@ const InventoryPage: React.FC = () => {
             value={newItemQuantity === 0 ? '' : newItemQuantity.toString()}
             onChange={e => setNewItemQuantity(Number(e.target.value))}
           />
-        </div>
-        <div className="flex gap-2 items-center">
-          <Input
+           <Input
             type="text"
             placeholder="태그"
             value={newItemTag}
             onChange={e => setNewItemTag(e.target.value)}
           />
-          <Button onClick={handleAddItem}><Plus className="mr-2" /> 품목 추가</Button>
+         
         </div>
+        <Button onClick={handleAddItem} className="w-full"><Plus className="mr-2" /> 품목 추가</Button>
       </div>
     </div>
   );
