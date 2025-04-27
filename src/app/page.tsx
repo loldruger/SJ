@@ -87,7 +87,7 @@ const InventoryPage: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    if (Array.isArray(inventory)) {
+    if (inventory && Array.isArray(inventory)) {
       saveInventoryToDB(inventory);
     }
   }, [inventory]);
@@ -106,23 +106,29 @@ const InventoryPage: React.FC = () => {
     const trimmedNewItemTag = newItemTag?.trim();
 
     // Check if item with same name and tag already exists
-    const existingItemIndex = inventory.findIndex(
+    const existingItemIndex = inventory && Array.isArray(inventory) ? inventory.findIndex(
       item => item.name === trimmedNewItemName &&
              ((newItemTag === undefined || newItemTag === '') ? (item.tag === undefined || item.tag === '') : item.tag === trimmedNewItemTag)
-    );
+    ) : -1;
 
     if (existingItemIndex !== -1) {
       setInventory(prevInventory => {
+        if (!Array.isArray(prevInventory)) {
+          return prevInventory;
+        }
         return prevInventory.map((item, index) =>
           index === existingItemIndex
             ? { ...item, quantity: item.quantity + newItemQuantity }
             : item
         );
       });
-      setRealTimeChanges(prevChanges => ({
-        ...prevChanges,
-        [inventory[existingItemIndex].id]: (prevChanges[inventory[existingItemIndex].id] || 0) + newItemQuantity,
-      }));
+      setRealTimeChanges(prevChanges => {
+        const currentChange = prevChanges[inventory[existingItemIndex].id] || 0;
+        return {
+          ...prevChanges,
+          [inventory[existingItemIndex].id]: currentChange + newItemQuantity,
+        };
+      });
       toast({
         title: "Success",
         description: `${newItemName} ${newItemTag ? `(${newItemTag})` : ''} quantity updated.`,
@@ -135,11 +141,14 @@ const InventoryPage: React.FC = () => {
         tag: trimmedNewItemTag,
       };
       setInventory(prevInventory => {
-        return Array.isArray(prevInventory) ? [...prevInventory, newItem] : [newItem];
+         if (!Array.isArray(prevInventory)) {
+          return [newItem];
+        }
+        return [...prevInventory, newItem];
       });
       setRealTimeChanges(prevChanges => ({
         ...prevChanges,
-        [newItem.id]: (prevChanges[newItem.id] || 0) + newItemQuantity,
+        [newItem.id]: 0,
       }));
       toast({
         title: "Success",
@@ -167,6 +176,9 @@ const InventoryPage: React.FC = () => {
     if (!selectedItem) return;
 
     setInventory(prevInventory => {
+       if (!Array.isArray(prevInventory)) {
+          return prevInventory;
+        }
       return prevInventory.map(item =>
         item.id === selectedItem.id
           ? { ...item, name: editedItemName, quantity: editedItemQuantity, tag: editedItemTag }
@@ -189,6 +201,9 @@ const InventoryPage: React.FC = () => {
   const confirmDeleteItem = () => {
     if (!selectedItem) return;
     setInventory(prevInventory => {
+       if (!Array.isArray(prevInventory)) {
+          return prevInventory;
+        }
       return prevInventory.filter(item => item.id !== selectedItem.id);
     });
     setIsDeleteConfirmationOpen(false);
@@ -200,10 +215,18 @@ const InventoryPage: React.FC = () => {
   };
 
   const handleQuantityChange = (itemId: string, change: number) => {
+    setRealTimeChanges(prevChanges => {
+      const currentChange = prevChanges[itemId] || 0;
+      const newChange = currentChange + change;
+      return {
+        ...prevChanges,
+        [itemId]: newChange,
+      };
+    });
     setInventory(prevInventory => {
-      if (!Array.isArray(prevInventory)) {
-        return prevInventory;
-      }
+       if (!Array.isArray(prevInventory)) {
+         return prevInventory;
+       }
       const itemToUpdate = prevInventory.find(item => item.id === itemId);
 
       if (!itemToUpdate) {
@@ -211,15 +234,6 @@ const InventoryPage: React.FC = () => {
       }
 
       let updatedQuantity = itemToUpdate.quantity + change;
-
-      // Update real-time changes
-      setRealTimeChanges(prevChanges => {
-        const currentChange = prevChanges[itemId] || 0;
-        return {
-          ...prevChanges,
-          [itemId]: currentChange + change,
-        };
-      });
 
       // Update inventory
       updatedQuantity = Math.max(0, updatedQuantity); // Ensure quantity doesn't go below 0
@@ -250,7 +264,7 @@ const InventoryPage: React.FC = () => {
             description: "CSV imported successfully.",
           });
         }
-      },
+       },
       error: () => {
         toast({
           title: "Error",
@@ -327,6 +341,25 @@ const InventoryPage: React.FC = () => {
     <div className="container mx-auto p-4">
       <h1 className="text-2xl font-bold mb-4">스마트 재고</h1>
 
+       {/* Total Quantity by Item Name Table */}
+       <Table className="rounded-md shadow-sm mb-4">
+        <TableCaption>품목별 총 수량</TableCaption>
+        <TableHeader>
+          <TableRow>
+            <TableHead>품목 이름</TableHead>
+            <TableHead>총 수량</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {Object.entries(totalQuantityByName).map(([name, quantity]) => (
+            <TableRow key={name}>
+              <TableCell>{name}</TableCell>
+              <TableCell>{quantity}</TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+
       {/* Data Manipulation Section */}
       <div className="flex space-x-4 mb-4">
         <label htmlFor="importCSV" className="flex items-center space-x-2 rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50">
@@ -388,9 +421,10 @@ const InventoryPage: React.FC = () => {
                   <Button
                     variant="destructive"
                     size="icon"
-                    onMouseDown={(e) => e.stopPropagation()}
                     onClick={() => handleQuantityChange(item.id, -1)}
+                       onMouseDown={(e) => e.stopPropagation()}
                   >
+
                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4"><line x1="5" x2="19" y1="12" y2="12" /></svg>
                   </Button>
                   <Button
