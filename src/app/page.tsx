@@ -26,19 +26,19 @@ interface InventoryItem {
   id: string;
   name: string;
   quantity: number;
-  tag: string;
+  tag?: string;
 }
 
 const InventoryPage: React.FC = () => {
   const [inventory, setInventory] = useState<InventoryItem[]>([]);
   const [newItemName, setNewItemName] = useState('');
   const [newItemQuantity, setNewItemQuantity] = useState(0);
-  const [newItemTag, setNewItemTag] = useState('');
+  const [newItemTag, setNewItemTag] = useState<string | undefined>('');
   const [selectedItem, setSelectedItem] = useState<InventoryItem | null>(null);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [editedItemName, setEditedItemName] = useState('');
   const [editedItemQuantity, setEditedItemQuantity] = useState(0);
-  const [editedItemTag, setEditedItemTag] = useState('');
+  const [editedItemTag, setEditedItemTag] = useState<string | undefined>('');
   const [isDeleteConfirmationOpen, setIsDeleteConfirmationOpen] = useState(false);
   const [realTimeChanges, setRealTimeChanges] = useState<{ [itemId: string]: number }>({});
   const [sortColumn, setSortColumn] = useState<keyof InventoryItem | null>('name');
@@ -50,16 +50,16 @@ const InventoryPage: React.FC = () => {
     const initialData = [
       { id: "1", name: "바나나", quantity: 50, tag: "19층" },
       { id: "2", name: "사과", quantity: 75, tag: "12층" },
-      { id: "3", name: "우유", quantity: 30, tag: "냉장고" },
+      { id: "3", name: "우유", quantity: 30 },
     ];
     setInventory(initialData);
   }, []);
 
   const handleAddItem = () => {
-    if (newItemName.trim() === '' || newItemTag.trim() === '') {
+    if (newItemName.trim() === '' || newItemQuantity === 0) {
       toast({
         title: "Error",
-        description: "Item name and tag cannot be empty.",
+        description: "Item name and quantity cannot be empty.",
         variant: "destructive",
       });
       return;
@@ -67,7 +67,7 @@ const InventoryPage: React.FC = () => {
 
     // Check if item with same name and tag already exists
     const existingItemIndex = inventory.findIndex(
-      item => item.name === newItemName && item.tag === newItemTag
+      item => item.name === newItemName && (newItemTag === undefined ? item.tag === undefined : item.tag === newItemTag)
     );
 
     if (existingItemIndex !== -1) {
@@ -77,7 +77,7 @@ const InventoryPage: React.FC = () => {
       setInventory(updatedInventory);
       toast({
         title: "Success",
-        description: `${newItemName} (${newItemTag}) quantity updated.`,
+        description: `${newItemName} ${newItemTag ? `(${newItemTag})` : ''} quantity updated.`,
       });
     } else {
       // Add new item
@@ -90,7 +90,7 @@ const InventoryPage: React.FC = () => {
       setInventory([...inventory, newItem]);
       toast({
         title: "Success",
-        description: `${newItemName} (${newItemTag}) added to inventory.`,
+        description: `${newItemName} ${newItemTag ? `(${newItemTag})` : ''} added to inventory.`,
       });
     }
 
@@ -267,8 +267,8 @@ const InventoryPage: React.FC = () => {
         return direction * ((a[sortColumn] || 0) - (b[sortColumn] || 0));
       }
 
-      const aValue = String(a[sortColumn]).toUpperCase();
-      const bValue = String(b[sortColumn]).toUpperCase();
+      const aValue = String(a[sortColumn] || '').toUpperCase();
+      const bValue = String(b[sortColumn] || '').toUpperCase();
 
       if (aValue < bValue) {
         return -1 * direction;
@@ -414,7 +414,7 @@ const InventoryPage: React.FC = () => {
            <Input
             type="text"
             placeholder="태그"
-            value={newItemTag}
+            value={newItemTag || ''}
             onChange={e => setNewItemTag(e.target.value)}
           />
          
