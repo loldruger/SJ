@@ -85,7 +85,9 @@ const InventoryPage: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    saveInventoryToDB(inventory);
+    if (Array.isArray(inventory)) {
+      saveInventoryToDB(inventory);
+    }
   }, [inventory]);
 
   const handleAddItem = () => {
@@ -103,11 +105,12 @@ const InventoryPage: React.FC = () => {
 
     const existingItemIndex = inventory.findIndex(item =>
       item.name === trimmedNewItemName &&
-      (item.tag === trimmedNewItemTag || (item.tag === undefined && trimmedNewItemTag === ''))
+      (item.tag === trimmedNewItemTag || (item.tag === undefined && trimmedNewItemTag === undefined || trimmedNewItemTag === ''))
     );
 
     if (existingItemIndex !== -1) {
       setInventory(prevInventory => {
+        if (!Array.isArray(prevInventory)) return prevInventory;
         return prevInventory.map((item, index) =>
           index === existingItemIndex
             ? { ...item, quantity: item.quantity + newItemQuantity }
@@ -131,7 +134,8 @@ const InventoryPage: React.FC = () => {
         tag: trimmedNewItemTag,
       };
       setInventory(prevInventory => {
-        return Array.isArray(prevInventory) ? [...prevInventory, newItem] : [newItem];
+        if (!Array.isArray(prevInventory)) return [newItem];
+        return [...prevInventory, newItem];
       });
         setRealTimeChanges(prevChanges => ({
             ...prevChanges,
@@ -160,6 +164,7 @@ const InventoryPage: React.FC = () => {
     if (!selectedItem) return;
 
     setInventory(prevInventory => {
+      if (!Array.isArray(prevInventory)) return prevInventory;
       return prevInventory.map(item =>
         item.id === selectedItem.id ? {
           ...item,
@@ -186,6 +191,7 @@ const InventoryPage: React.FC = () => {
     if (!selectedItem) return;
 
     setInventory(prevInventory => {
+      if (!Array.isArray(prevInventory)) return prevInventory;
       return prevInventory.filter(item => item.id !== selectedItem.id);
     });
     setIsDeleteConfirmationOpen(false);
@@ -201,7 +207,6 @@ const InventoryPage: React.FC = () => {
   };
 
   const handleQuantityChange = (itemId: string, change: number) => {
-
     setInventory(prevInventory => {
       if (!Array.isArray(prevInventory)) {
         return prevInventory;
@@ -322,7 +327,7 @@ const InventoryPage: React.FC = () => {
   };
 
   const sortedInventory = useMemo(() => {
-      if (!Array.isArray(inventory)) return [];
+    if (!Array.isArray(inventory)) return [];
     if (!inventory) return [];
     if (!sortColumn) return inventory;
 
