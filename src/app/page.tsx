@@ -132,11 +132,27 @@ const InventoryPage: React.FC = () => {
   };
 
   const handleQuantityChange = (itemId: string, change: number) => {
-    setInventory(prevInventory =>
-      prevInventory.map(item =>
-        item.id === itemId ? { ...item, quantity: item.quantity + change } : item
-      )
-    );
+    setInventory(prevInventory => {
+      const itemToUpdate = prevInventory.find(item => item.id === itemId);
+      if (!itemToUpdate) return prevInventory;
+
+      const updatedQuantity = itemToUpdate.quantity + change;
+
+      // 품목 수량이 0 미만으로 내려가지 않도록 제한
+      if (updatedQuantity < 0) {
+        toast({
+          title: "Error",
+          description: "품목 수량은 0 미만이 될 수 없습니다.",
+          variant: "destructive",
+        });
+        return prevInventory;
+      }
+
+      return prevInventory.map(item =>
+        item.id === itemId ? { ...item, quantity: updatedQuantity } : item
+      );
+    });
+
     setRealTimeChanges(prevChanges => ({
       ...prevChanges,
       [itemId]: (prevChanges[itemId] || 0) + change,
@@ -290,43 +306,6 @@ const InventoryPage: React.FC = () => {
     <div className="container mx-auto p-4">
       <h1 className="text-2xl font-bold mb-4">스마트 재고</h1>
 
-      {/* Add Item Section */}
-      <div className="mb-4 flex flex-col gap-2">
-        <div className="flex gap-2 items-center">
-          <Input
-            type="text"
-            placeholder="품목 이름"
-            value={newItemName}
-            onChange={e => setNewItemName(e.target.value)}
-          />
-          <Input
-            type="number"
-            placeholder="수량"
-            value={newItemQuantity === 0 ? '' : newItemQuantity.toString()}
-            onChange={e => setNewItemQuantity(Number(e.target.value))}
-          />
-          <Button onClick={handleAddItem}><Plus className="mr-2" /> 품목 추가</Button>
-        </div>
-        <div className="flex gap-2 items-center">
-          <Input
-            type="text"
-            placeholder="태그"
-            value={newTag}
-            onChange={e => setNewTag(e.target.value)}
-          />
-          <Button type="button" onClick={handleAddTag}>태그 추가</Button>
-        </div>
-        {newItemTags.length > 0 && (
-          <div className="flex gap-2">
-            {newItemTags.map(tag => (
-              <Button key={tag} variant="secondary" size="sm" onClick={() => handleRemoveTag(tag)}>
-                {tag} <Trash2 className="ml-2 h-4 w-4" />
-              </Button>
-            ))}
-          </div>
-        )}
-      </div>
-
       {/* Data Manipulation Section */}
       <div className="mb-4 flex gap-2">
         <label htmlFor="importCSV" className="flex items-center space-x-2 rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50">
@@ -463,6 +442,43 @@ const InventoryPage: React.FC = () => {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Add Item Section */}
+      <div className="mt-4 flex flex-col gap-2">
+        <div className="flex gap-2 items-center">
+          <Input
+            type="text"
+            placeholder="품목 이름"
+            value={newItemName}
+            onChange={e => setNewItemName(e.target.value)}
+          />
+          <Input
+            type="number"
+            placeholder="수량"
+            value={newItemQuantity === 0 ? '' : newItemQuantity.toString()}
+            onChange={e => setNewItemQuantity(Number(e.target.value))}
+          />
+          <Button onClick={handleAddItem}><Plus className="mr-2" /> 품목 추가</Button>
+        </div>
+        <div className="flex gap-2 items-center">
+          <Input
+            type="text"
+            placeholder="태그"
+            value={newTag}
+            onChange={e => setNewTag(e.target.value)}
+          />
+          <Button type="button" onClick={handleAddTag}>태그 추가</Button>
+        </div>
+        {newItemTags.length > 0 && (
+          <div className="flex gap-2">
+            {newItemTags.map(tag => (
+              <Button key={tag} variant="secondary" size="sm" onClick={() => handleRemoveTag(tag)}>
+                {tag} <Trash2 className="ml-2 h-4 w-4" />
+              </Button>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 };
