@@ -107,22 +107,22 @@ const InventoryPage: React.FC = () => {
 
     // Check if item with same name and tag already exists
     const existingItemIndex = inventory && Array.isArray(inventory) ? inventory.findIndex(
-      item => item.name === trimmedNewItemName &&
+      (item: InventoryItem) => item.name === trimmedNewItemName &&
              ((newItemTag === undefined || newItemTag === '') ? (item.tag === undefined || item.tag === '') : item.tag === trimmedNewItemTag)
     ) : -1;
 
     if (existingItemIndex !== -1) {
-      setInventory(prevInventory => {
+      setInventory((prevInventory: InventoryItem[]) => {
         if (!Array.isArray(prevInventory)) {
           return prevInventory;
         }
-        return prevInventory.map((item, index) =>
+        return prevInventory.map((item: InventoryItem, index: number) =>
           index === existingItemIndex
             ? { ...item, quantity: item.quantity + newItemQuantity }
             : item
         );
       });
-      setRealTimeChanges(prevChanges => {
+      setRealTimeChanges((prevChanges: { [itemId: string]: number }) => {
         const currentChange = prevChanges[inventory[existingItemIndex].id] || 0;
         return {
           ...prevChanges,
@@ -140,13 +140,13 @@ const InventoryPage: React.FC = () => {
         quantity: newItemQuantity,
         tag: trimmedNewItemTag,
       };
-      setInventory(prevInventory => {
+      setInventory((prevInventory: InventoryItem[]) => {
          if (!Array.isArray(prevInventory)) {
           return [newItem];
         }
         return [...prevInventory, newItem];
       });
-      setRealTimeChanges(prevChanges => ({
+      setRealTimeChanges((prevChanges: { [itemId: string]: number }) => ({
         ...prevChanges,
         [newItem.id]: 0,
       }));
@@ -175,11 +175,26 @@ const InventoryPage: React.FC = () => {
   const handleUpdateItem = () => {
     if (!selectedItem) return;
 
-    setInventory(prevInventory => {
+    // Find the original item to calculate the quantity difference
+    const originalItem = inventory.find((item: InventoryItem) => item.id === selectedItem.id);
+    if (!originalItem) return; // Should not happen, but good practice
+
+    const quantityChange = editedItemQuantity - originalItem.quantity;
+
+    // Update realTimeChanges state
+    setRealTimeChanges((prevChanges: { [itemId: string]: number }) => {
+      const currentChange = prevChanges[selectedItem.id] || 0;
+      return {
+        ...prevChanges,
+        [selectedItem.id]: currentChange + quantityChange,
+      };
+    });
+
+    setInventory((prevInventory: InventoryItem[]) => {
        if (!Array.isArray(prevInventory)) {
           return prevInventory;
         }
-      return prevInventory.map(item =>
+      return prevInventory.map((item: InventoryItem) =>
         item.id === selectedItem.id
           ? { ...item, name: editedItemName, quantity: editedItemQuantity, tag: editedItemTag }
           : item
@@ -200,11 +215,11 @@ const InventoryPage: React.FC = () => {
 
   const confirmDeleteItem = () => {
     if (!selectedItem) return;
-    setInventory(prevInventory => {
+    setInventory((prevInventory: InventoryItem[]) => {
        if (!Array.isArray(prevInventory)) {
           return prevInventory;
         }
-      return prevInventory.filter(item => item.id !== selectedItem.id);
+      return prevInventory.filter((item: InventoryItem) => item.id !== selectedItem.id);
     });
     setIsDeleteConfirmationOpen(false);
     setSelectedItem(null);
@@ -215,18 +230,18 @@ const InventoryPage: React.FC = () => {
   };
 
   const handleQuantityChange = (itemId: string, change: number) => {
-     setRealTimeChanges(prevChanges => {
+     setRealTimeChanges((prevChanges: { [itemId: string]: number }) => {
        const currentChange = prevChanges[itemId] || 0;
        return {
          ...prevChanges,
          [itemId]: currentChange + change,
        };
      });
-    setInventory(prevInventory => {
+    setInventory((prevInventory: InventoryItem[]) => {
        if (!Array.isArray(prevInventory)) {
          return prevInventory;
        }
-      const itemToUpdate = prevInventory.find(item => item.id === itemId);
+      const itemToUpdate = prevInventory.find((item: InventoryItem) => item.id === itemId);
 
       if (!itemToUpdate) {
         return prevInventory;
@@ -234,7 +249,7 @@ const InventoryPage: React.FC = () => {
 
       let updatedQuantity = itemToUpdate.quantity + change;
       updatedQuantity = Math.max(0, updatedQuantity);
-      return prevInventory.map(item =>
+      return prevInventory.map((item: InventoryItem) =>
         item.id === itemId ? { ...item, quantity: updatedQuantity } : item
       );
     });
@@ -245,7 +260,7 @@ const InventoryPage: React.FC = () => {
 
     Papa.parse(file, {
       header: true,
-      complete: (results) => {
+      complete: (results: Papa.ParseResult<Record<string, any>>) => {
         if (results.data && Array.isArray(results.data)) {
           const importedInventory: InventoryItem[] = results.data.map((row: any) => ({
             id: Date.now().toString(),
@@ -253,7 +268,7 @@ const InventoryPage: React.FC = () => {
             quantity: Number(row.quantity) || 0,
             tag: row.tag || '',
           }));
-          setInventory(prevInventory => {
+          setInventory((prevInventory: InventoryItem[]) => {
             return Array.isArray(prevInventory) ? [...prevInventory, ...importedInventory] : importedInventory;
           });
           toast({
@@ -275,7 +290,7 @@ const InventoryPage: React.FC = () => {
   const handleExportCSV = () => {
     const csv = Papa.unparse({
       fields: ["name", "quantity", "tag"],
-      data: inventory.map(item => ({ name: item.name, quantity: item.quantity, tag: item.tag })),
+      data: inventory.map((item: InventoryItem) => ({ name: item.name, quantity: item.quantity, tag: item.tag })),
     });
 
     const blob = new Blob([csv], { type: 'text/csv' });
@@ -327,7 +342,7 @@ const InventoryPage: React.FC = () => {
 
   const totalQuantityByName = useMemo(() => {
     if (!inventory || !Array.isArray(inventory)) return {};
-    return inventory.reduce((acc: { [name: string]: number }, item) => {
+    return inventory.reduce((acc: { [name: string]: number }, item: InventoryItem) => {
       const key = item.name;
       acc[key] = (acc[key] || 0) + item.quantity;
       return acc;
