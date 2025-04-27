@@ -280,7 +280,8 @@ const InventoryPage: React.FC = () => {
 
   const totalQuantityByName = useMemo(() => {
     return inventory.reduce((acc: { [name: string]: number }, item) => {
-      acc[item.name] = (acc[item.name] || 0) + item.quantity;
+      const key = item.name;
+      acc[key] = (acc[key] || 0) + item.quantity;
       return acc;
     }, {});
   }, [inventory]);
