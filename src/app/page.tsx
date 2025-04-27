@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -19,6 +19,7 @@ import {
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import * as Papa from 'papaparse';
+import { IDBPDatabase, openDB } from 'idb';
 
 interface InventoryItem {
   id: string;
@@ -26,6 +27,35 @@ interface InventoryItem {
   quantity: number;
   tag?: string;
 }
+
+const storeName = 'inventory-store';
+const dbName = 'inventory-db';
+
+const getDB = async (): Promise<IDBPDatabase<unknown>> => {
+  return openDB(dbName, 1, {
+    upgrade(db) {
+      db.createObjectStore(storeName, { keyPath: 'id' });
+    },
+  });
+};
+
+const saveInventoryToDB = async (inventory: InventoryItem[]) => {
+  const db = await getDB();
+  const tx = db.transaction(storeName, 'readwrite');
+  const store = tx.objectStore(storeName);
+  inventory.forEach(item => store.put(item));
+  await tx.done;
+  db.close();
+};
+
+const loadInventoryFromDB = async (): Promise<InventoryItem[]> => {
+  const db = await getDB();
+  const tx = db.transaction(storeName, 'readonly');
+  const store = tx.objectStore(storeName);
+  const allItems = await store.getAll();
+  db.close();
+  return allItems;
+};
 
 const InventoryPage: React.FC = () => {
   const [inventory, setInventory] = useState<InventoryItem[]>([]);
@@ -44,14 +74,19 @@ const InventoryPage: React.FC = () => {
   const { toast } = useToast();
 
   useEffect(() => {
-    // Load initial inventory data (can be replaced with API call)
-    const initialData = [
-      { id: "1", name: "바나나", quantity: 50, tag: "19층" },
-      { id: "2", name: "사과", quantity: 75, tag: "12층" },
-      { id: "3", name: "우유", quantity: 30 },
-    ];
-    setInventory(initialData);
+    const loadInitialInventory = async () => {
+      const data = await loadInventoryFromDB();
+      setInventory(data);
+    };
+
+    loadInitialInventory();
   }, []);
+
+  useEffect(() => {
+    if (inventory && inventory.length > 0) {
+      saveInventoryToDB(inventory);
+    }
+  }, [inventory]);
 
   const handleAddItem = () => {
     if (newItemName.trim() === '' || newItemQuantity === 0) {
@@ -71,9 +106,13 @@ const InventoryPage: React.FC = () => {
 
     if (existingItemIndex !== -1) {
       // Increase quantity of existing item
-      const updatedInventory = [...inventory];
-      updatedInventory[existingItemIndex].quantity += newItemQuantity;
-      setInventory(updatedInventory);
+      setInventory(prevInventory => {
+        const updatedInventory = prevInventory.map((item, index) =>
+          index === existingItemIndex ? { ...item, quantity: item.quantity + newItemQuantity } : item
+        );
+        return updatedInventory;
+      });
+
       toast({
         title: "Success",
         description: `${newItemName} ${newItemTag ? `(${newItemTag})` : ''} quantity updated.`,
@@ -86,7 +125,7 @@ const InventoryPage: React.FC = () => {
         quantity: newItemQuantity,
         tag: newItemTag,
       };
-      setInventory([...inventory, newItem]);
+      setInventory(prevInventory => [...prevInventory, newItem]);
       toast({
         title: "Success",
         description: `${newItemName} ${newItemTag ? `(${newItemTag})` : ''} added to inventory.`,
@@ -109,15 +148,17 @@ const InventoryPage: React.FC = () => {
   const handleUpdateItem = () => {
     if (!selectedItem) return;
 
-    const updatedInventory = inventory.map(item =>
-      item.id === selectedItem.id ? {
-        ...item,
-        name: editedItemName,
-        quantity: editedItemQuantity,
-        tag: editedItemTag,
-      } : item
-    );
-    setInventory(updatedInventory);
+    setInventory(prevInventory => {
+      const updatedInventory = prevInventory.map(item =>
+        item.id === selectedItem.id ? {
+          ...item,
+          name: editedItemName,
+          quantity: editedItemQuantity,
+          tag: editedItemTag,
+        } : item
+      );
+      return updatedInventory;
+    });
     setIsEditDialogOpen(false);
     setSelectedItem(null);
     toast({
@@ -134,8 +175,10 @@ const InventoryPage: React.FC = () => {
   const confirmDeleteItem = () => {
     if (!selectedItem) return;
 
-    const updatedInventory = inventory.filter(item => item.id !== selectedItem.id);
-    setInventory(updatedInventory);
+    setInventory(prevInventory => {
+      const updatedInventory = prevInventory.filter(item => item.id !== selectedItem.id);
+      return updatedInventory;
+    });
     setIsDeleteConfirmationOpen(false);
     setSelectedItem(null);
     toast({
@@ -201,7 +244,7 @@ const InventoryPage: React.FC = () => {
             quantity: parseInt(item.quantity || '0', 10),
             tag: item.tag || '',
           }));
-          setInventory([...inventory, ...newInventoryItems]);
+          setInventory(prevInventory => [...prevInventory, ...newInventoryItems]);
           toast({
             title: "Success",
             description: "CSV file imported successfully.",
@@ -256,7 +299,8 @@ const InventoryPage: React.FC = () => {
     }
   };
 
-  const sortedInventory = React.useMemo(() => {
+  const sortedInventory = useMemo(() => {
+    if (!inventory) return [];
     if (!sortColumn) return inventory;
 
     return [...inventory].sort((a, b) => {
@@ -280,6 +324,7 @@ const InventoryPage: React.FC = () => {
   }, [inventory, sortColumn, sortDirection]);
 
   const totalQuantityByName = useMemo(() => {
+    if (!inventory) return {};
     return inventory.reduce((acc: { [name: string]: number }, item) => {
       const key = item.name;
       acc[key] = (acc[key] || 0) + item.quantity;
