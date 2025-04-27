@@ -43,8 +43,10 @@ const saveInventoryToDB = async (inventory: InventoryItem[]) => {
   const db = await getDB();
   const tx = db.transaction(storeName, 'readwrite');
   const store = tx.objectStore(storeName);
-  inventory.forEach(item => store.put(item));
-  await tx.done;
+  if (inventory) {
+      inventory.forEach(item => store.put(item));
+      await tx.done;
+  }
   db.close();
 };
 
@@ -54,7 +56,7 @@ const loadInventoryFromDB = async (): Promise<InventoryItem[]> => {
   const store = tx.objectStore(storeName);
   const allItems = await store.getAll();
   db.close();
-  return allItems;
+  return allItems || [];
 };
 
 const InventoryPage: React.FC = () => {
@@ -83,9 +85,7 @@ const InventoryPage: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    if (inventory && inventory.length > 0) {
-      saveInventoryToDB(inventory);
-    }
+    saveInventoryToDB(inventory);
   }, [inventory]);
 
   const handleAddItem = () => {
@@ -98,14 +98,12 @@ const InventoryPage: React.FC = () => {
       return;
     }
 
-    // Check if item with same name and tag already exists
     const existingItemIndex = inventory.findIndex(
       item => item.name === newItemName &&
              ((newItemTag === undefined || newItemTag === '') ? (item.tag === undefined || item.tag === '') : item.tag === newItemTag)
     );
 
     if (existingItemIndex !== -1) {
-      // Increase quantity of existing item
       setInventory(prevInventory => {
         const updatedInventory = prevInventory.map((item, index) =>
           index === existingItemIndex ? { ...item, quantity: item.quantity + newItemQuantity } : item
@@ -118,7 +116,6 @@ const InventoryPage: React.FC = () => {
         description: `${newItemName} ${newItemTag ? `(${newItemTag})` : ''} quantity updated.`,
       });
     } else {
-      // Add new item
       const newItem: InventoryItem = {
         id: Date.now().toString(),
         name: newItemName,
@@ -187,41 +184,33 @@ const InventoryPage: React.FC = () => {
     });
   };
 
-  const handleQuantityChange = (itemId: string, change: number) => {
-    setInventory(prevInventory => {
-      const itemToUpdate = prevInventory.find(item => item.id === itemId);
-      if (!itemToUpdate) return prevInventory;
+    const handleQuantityChange = (itemId: string, change: number) => {
+        setInventory(prevInventory => {
+            const itemToUpdate = prevInventory.find(item => item.id === itemId);
+            if (!itemToUpdate) return prevInventory;
 
-      const updatedQuantity = itemToUpdate.quantity + change;
+            const updatedQuantity = itemToUpdate.quantity + change;
 
-      // 품목 수량이 0 미만으로 내려가지 않도록 제한
-      if (updatedQuantity < 0) {
-        toast({
-          title: "Error",
-          description: "품목 수량은 0 미만이 될 수 없습니다.",
-          variant: "destructive",
+            if (updatedQuantity < 0) {
+                toast({
+                    title: "Error",
+                    description: "품목 수량은 0 미만이 될 수 없습니다.",
+                    variant: "destructive",
+                });
+                return prevInventory;
+            }
+
+            // Update real-time changes
+            setRealTimeChanges(prevChanges => ({
+                ...prevChanges,
+                [itemId]: (prevChanges[itemId] || 0) + change,
+            }));
+
+            return prevInventory.map(item =>
+                item.id === itemId ? { ...item, quantity: updatedQuantity } : item
+            );
         });
-        return prevInventory;
-      }
-
-      return prevInventory.map(item =>
-        item.id === itemId ? { ...item, quantity: updatedQuantity } : item
-      );
-    });
-
-    setRealTimeChanges(prevChanges => ({
-      ...prevChanges,
-      [itemId]: (prevChanges[itemId] || 0) + change,
-    }));
-
-    // Clear the real-time change indicator after a short delay
-    setTimeout(() => {
-      setRealTimeChanges(prevChanges => {
-        const { [itemId]: removedItem, ...rest } = prevChanges;
-        return rest;
-      });
-    }, 2000);
-  };
+    };
 
   const handleImportCSV = (file: File | null) => {
     if (!file) {
@@ -373,21 +362,54 @@ const InventoryPage: React.FC = () => {
           </TableRow>
         </TableHeader>
         <TableBody>
-          {sortedInventory.map((item) => (
-            <TableRow key={item.id}>
-              <TableCell>{item.name} {realTimeChanges[item.id] !== 0 && (<span className={realTimeChanges[item.id] > 0 ? "text-positive" : "text-accent"}>({realTimeChanges[item.id] > 0 ? "+" : ""}{realTimeChanges[item.id]})</span>)}</TableCell>
-              <TableCell>{item.quantity}</TableCell>
-              <TableCell>
-                {item.tag}
-              </TableCell>
-              <TableCell className="text-right">
-                <Button variant="secondary" size="icon" onClick={() => handleQuantityChange(item.id, 1)}><Plus className="h-4 w-4" /></Button>
-                <Button variant="secondary" size="icon" onClick={() => handleQuantityChange(item.id, -1)}><Minus className="h-4 w-4" /></Button>
-                <Button variant="outline" size="icon" onClick={() => handleEditItem(item)}><Edit className="h-4 w-4" /></Button>
-                <Button variant="destructive" size="icon" onClick={() => handleDeleteItem(item)}><Trash2 className="h-4 w-4" /></Button>
-              </TableCell>
-            </TableRow>
-          ))}
+          {sortedInventory.map((item) => {
+              const change = realTimeChanges[item.id] || 0;
+              return (
+                <TableRow key={item.id}>
+                  <TableCell>
+                    {item.name}{" "}
+                    {change !== 0 && (
+                      <span className={change > 0 ? "text-positive" : "text-accent"}>
+                        ({change > 0 ? "+" : ""}
+                        {change})
+                      </span>
+                    )}
+                  </TableCell>
+                  <TableCell>{item.quantity}</TableCell>
+                  <TableCell>{item.tag}</TableCell>
+                  <TableCell className="text-right">
+                    <Button
+                      variant="secondary"
+                      size="icon"
+                      onClick={() => handleQuantityChange(item.id, 1)}
+                    >
+                      <Plus className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="secondary"
+                      size="icon"
+                      onClick={() => handleQuantityChange(item.id, -1)}
+                    >
+                      <Minus className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      onClick={() => handleEditItem(item)}
+                    >
+                      <Edit className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="destructive"
+                      size="icon"
+                      onClick={() => handleDeleteItem(item)}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              );
+            })}
         </TableBody>
       </Table>
 
