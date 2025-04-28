@@ -365,11 +365,23 @@ const InventoryPage: React.FC = () => {
     });
   }, [inventory, sortColumn, sortDirection]);
 
-  const totalQuantityByName = useMemo(() => {
+  // Modify this useMemo hook
+  const itemSummary = useMemo(() => {
     if (!inventory || !Array.isArray(inventory)) return {};
-    return inventory.reduce((acc: { [name: string]: number }, item: InventoryItem) => {
+    return inventory.reduce((acc: { [name: string]: { quantity: number; tags: Set<string> } }, item: InventoryItem) => {
       const key = item.name;
-      acc[key] = (acc[key] || 0) + item.quantity;
+      if (!acc[key]) {
+        acc[key] = { quantity: 0, tags: new Set<string>() };
+      }
+      acc[key].quantity += item.quantity;
+      if (item.tag) {
+        item.tag.split(',').forEach((tag: string) => { // Add type for tag
+          const trimmedTag = tag.trim();
+          if (trimmedTag !== '') {
+            acc[key].tags.add(trimmedTag);
+          }
+        });
+      }
       return acc;
     }, {});
   }, [inventory]);
@@ -477,18 +489,34 @@ const InventoryPage: React.FC = () => {
 
        {/* Total Quantity by Item Name Table */}
        <Table className="rounded-md shadow-sm mb-4">
-        <TableCaption>품목별 총 수량</TableCaption>
+        <TableCaption>품목별 총 수량 및 태그</TableCaption> {/* Update caption */}
         <TableHeader>
           <TableRow>
             <TableHead>품목 이름</TableHead>
             <TableHead>총 수량</TableHead>
+            <TableHead>태그</TableHead> {/* Add new header */}
           </TableRow>
         </TableHeader>
         <TableBody>
-          {Object.entries(totalQuantityByName).map(([name, quantity]) => (
+          {/* Update map function to use itemSummary */}
+          {Object.entries(itemSummary).map(([name, summary]) => (
             <TableRow key={name}>
               <TableCell>{name}</TableCell>
-              <TableCell>{quantity}</TableCell>
+              <TableCell>{summary.quantity}</TableCell>
+              {/* Add new cell for tags */}
+              <TableCell>
+                <div className="flex flex-wrap gap-1">
+                  {Array.from(summary.tags).map((tag: string, index: number) => ( // Add types for tag and index
+                    // Add hover:bg-amber-200 and hover:text-amber-900 for hover effect
+                    <Badge
+                      key={`${name}-tag-${index}`}
+                      className="font-normal bg-amber-100 text-amber-800 border-amber-200 hover:bg-amber-200 hover:text-amber-900"
+                    >
+                      {tag}
+                    </Badge>
+                  ))}
+                </div>
+              </TableCell>
             </TableRow>
           ))}
         </TableBody>
