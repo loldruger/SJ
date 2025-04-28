@@ -4,6 +4,8 @@
 
 body {
   font-family: Arial, Helvetica, sans-serif;
+  /* Add a slightly larger base font size */
+  font-size: 16px; /* You can adjust this value as needed */
 }
 
 @layer base {
@@ -88,5 +90,7 @@ body {
   }
   body {
     @apply bg-background text-foreground;
+    /* Ensure the font-size is applied */
+    font-size: 1rem; /* 16px equivalent, using rem is often preferred */
   }
 }
