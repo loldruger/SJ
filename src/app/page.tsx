@@ -426,30 +426,26 @@ const InventoryPage: React.FC = () => {
             const change = realTimeChanges[item.id] || 0;
             return (
               <TableRow key={item.id}>
+                {/* Apply max-w-xs to constrain width */}
+                <TableCell className="font-medium whitespace-normal break-words max-w-xs">{item.name}</TableCell>
                 <TableCell>
-                  {item.name}{" "}
-                  {change !== 0 && (
-                    <span className={cn(change > 0 ? "text-green-600" : "text-red-600", "ml-1")}>
-                      ({change > 0 ? "+" : ""}
-                      {change})
-                    </span>
-                  )}
+                  {item.quantity}
                 </TableCell>
-                <TableCell>{item.quantity}</TableCell>
-                <TableCell>
+                {/* Apply whitespace-normal to Tag cell */}
+                <TableCell className="whitespace-normal">
                   {item.tag && item.tag.trim() !== '' ? (
                     <div className="flex flex-wrap gap-1">
                       {item.tag.split(',')
                         .map((tag: string) => tag.trim()) // Add type for tag
                         .filter((tag: string) => tag !== '') // Add type for tag
                         .map((tag: string, index: number) => ( // Add types for tag and index
-                          // Add className="font-medium" to adjust font weight
                           <Badge key={`${item.id}-tag-${index}`} variant="default" className="font-medium">{tag}</Badge> // Use a more unique key
-                      ))}
+                    ))}
                     </div>
                   ) : null}
                 </TableCell>
-                <TableCell className="text-right">
+                {/* Add whitespace-nowrap to prevent shrinking/wrapping */}
+                <TableCell className="text-right whitespace-nowrap">
                   <Button
                     variant="secondary"
                     size="icon"
@@ -501,7 +497,8 @@ const InventoryPage: React.FC = () => {
           {/* Update map function to use itemSummary */}
           {Object.entries(itemSummary).map(([name, summary]) => (
             <TableRow key={name}>
-              <TableCell>{name}</TableCell>
+              {/* Apply max-w-xs, whitespace-normal, and break-words */}
+              <TableCell className="whitespace-normal break-words max-w-xs">{name}</TableCell>
               <TableCell>{summary.quantity}</TableCell>
               {/* Add new cell for tags */}
               <TableCell>
