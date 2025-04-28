@@ -19,7 +19,8 @@ import {
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import * as Papa from 'papaparse';
-import { IDBPDatabase, openDB } from 'idb';
+import { IDBPDatabase, openDB, IDBPTransaction, DBSchema } from 'idb'; // Import necessary types from idb
+import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 
 interface InventoryItem {
@@ -29,12 +30,20 @@ interface InventoryItem {
   tag?: string;
 }
 
+// Define a schema for the database (optional but good practice)
+interface InventoryDBSchema extends DBSchema {
+  'inventory-store': {
+    key: string;
+    value: InventoryItem;
+  };
+}
+
 const storeName = 'inventory-store';
 const dbName = 'inventory-db';
 
-const getDB = async (): Promise<IDBPDatabase<unknown>> => {
-  return openDB(dbName, 1, {
-    upgrade(db) {
+const getDB = async (): Promise<IDBPDatabase<InventoryDBSchema>> => { // Use the schema
+  return openDB<InventoryDBSchema>(dbName, 1, { // Use the schema
+    upgrade(db: IDBPDatabase<InventoryDBSchema>) { // Add type for db
       db.createObjectStore(storeName, { keyPath: 'id' });
     },
   });
@@ -42,10 +51,12 @@ const getDB = async (): Promise<IDBPDatabase<unknown>> => {
 
 const saveInventoryToDB = async (inventory: InventoryItem[]) => {
   const db = await getDB();
+  // Specify transaction type arguments
   const tx = db.transaction(storeName, 'readwrite');
   const store = tx.objectStore(storeName);
   if (Array.isArray(inventory)) {
-    inventory.forEach(item => store.put(item));
+    // Use Promise.all for better handling of multiple async operations
+    await Promise.all(inventory.map(item => store.put(item)));
     await tx.done;
   }
   db.close();
@@ -53,12 +64,15 @@ const saveInventoryToDB = async (inventory: InventoryItem[]) => {
 
 const loadInventoryFromDB = async (): Promise<InventoryItem[]> => {
   const db = await getDB();
+  // Specify transaction type arguments
   const tx = db.transaction(storeName, 'readonly');
   const store = tx.objectStore(storeName);
   const allItems = await store.getAll();
   db.close();
+  // Ensure an array is always returned
   return allItems || [];
 };
+
 
 const InventoryPage: React.FC = () => {
   const [inventory, setInventory] = useState<InventoryItem[]>([]);
@@ -258,16 +272,31 @@ const InventoryPage: React.FC = () => {
   const handleImportCSV = (file: File | null) => {
     if (!file) return;
 
-    Papa.parse(file, {
+    const config: Papa.ParseConfig<Record<string, any>> = {
       header: true,
+      worker: false, // Explicitly set worker to false
       complete: (results: Papa.ParseResult<Record<string, any>>) => {
+        // Check for parsing errors within the results
+        if (results.errors && results.errors.length > 0) {
+            console.error("CSV Import Errors:", results.errors);
+            toast({
+              title: "Error",
+              description: `Error importing CSV file: ${results.errors[0].message}. Check console for details.`,
+              variant: "destructive",
+            });
+            return; // Stop processing if errors occurred
+        }
+
+        // Process data if no errors
         if (results.data && Array.isArray(results.data)) {
-          const importedInventory: InventoryItem[] = results.data.map((row: any) => ({
-            id: Date.now().toString(),
-            name: row.name || 'Unknown',
-            quantity: Number(row.quantity) || 0,
-            tag: row.tag || '',
-          }));
+          const importedInventory: InventoryItem[] = results.data
+            .filter((row: any) => row && typeof row === 'object' && row.name)
+            .map((row: any) => ({
+              id: Date.now().toString() + Math.random().toString(36).substring(2, 15),
+              name: row.name || 'Unknown',
+              quantity: Number(row.quantity) || 0,
+              tag: row.tag || '',
+            }));
           setInventory((prevInventory: InventoryItem[]) => {
             return Array.isArray(prevInventory) ? [...prevInventory, ...importedInventory] : importedInventory;
           });
@@ -277,14 +306,10 @@ const InventoryPage: React.FC = () => {
           });
         }
        },
-      error: () => {
-        toast({
-          title: "Error",
-          description: "Error importing CSV file.",
-          variant: "destructive",
-        });
-      }
-    });
+    };
+
+    // Call Papa.parse with the config including worker: false
+    Papa.parse(file, config);
   };
 
   const handleExportCSV = () => {
@@ -354,7 +379,7 @@ const InventoryPage: React.FC = () => {
       <h1 className="text-2xl font-bold mb-4">스마트 재고</h1>
       {/* Data Manipulation Section */}
       <div className="flex space-x-4 mb-4">
-        <label htmlFor="importCSV" className="flex items-center space-x-2 rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50">
+        <label htmlFor="importCSV" className="flex items-center space-x-2 rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 cursor-pointer"> {/* Added cursor-pointer */}
           <FileInput className="h-4 w-4" />
           <span>CSV 가져오기</span>
           <input
@@ -362,7 +387,7 @@ const InventoryPage: React.FC = () => {
             id="importCSV"
             accept=".csv"
             className="hidden"
-            onChange={(e) => handleImportCSV(e.target.files ? e.target.files[0] : null)}
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleImportCSV(e.target.files ? e.target.files[0] : null)} // Add type for e
           />
         </label>
         <Button variant="outline" onClick={handleExportCSV}><FileText className="h-4 w-4 mr-2" />CSV 내보내기</Button>
@@ -385,27 +410,39 @@ const InventoryPage: React.FC = () => {
           </TableRow>
         </TableHeader>
         <TableBody>
-          {sortedInventory && sortedInventory.map((item) => {
+          {sortedInventory && sortedInventory.map((item: InventoryItem) => { // Add type for item
             const change = realTimeChanges[item.id] || 0;
             return (
               <TableRow key={item.id}>
                 <TableCell>
                   {item.name}{" "}
                   {change !== 0 && (
-                    <span className={change > 0 ? "text-positive" : "text-destructive"}>
+                    <span className={cn(change > 0 ? "text-green-600" : "text-red-600", "ml-1")}>
                       ({change > 0 ? "+" : ""}
                       {change})
                     </span>
                   )}
                 </TableCell>
                 <TableCell>{item.quantity}</TableCell>
-                <TableCell>{item.tag}</TableCell>
+                <TableCell>
+                  {item.tag && item.tag.trim() !== '' ? (
+                    <div className="flex flex-wrap gap-1">
+                      {item.tag.split(',')
+                        .map((tag: string) => tag.trim()) // Add type for tag
+                        .filter((tag: string) => tag !== '') // Add type for tag
+                        .map((tag: string, index: number) => ( // Add types for tag and index
+                          // Add className="font-medium" to adjust font weight
+                          <Badge key={`${item.id}-tag-${index}`} variant="default" className="font-medium">{tag}</Badge> // Use a more unique key
+                      ))}
+                    </div>
+                  ) : null}
+                </TableCell>
                 <TableCell className="text-right">
                   <Button
                     variant="secondary"
                     size="icon"
                     onClick={() => handleQuantityChange(item.id, 1)}
-                    onMouseDown={(e) => e.stopPropagation()}
+                    onMouseDown={(e: React.MouseEvent<HTMLButtonElement>) => e.stopPropagation()} // Add type for e
                   >
                     <Plus className="h-4 w-4" />
                   </Button>
@@ -413,9 +450,8 @@ const InventoryPage: React.FC = () => {
                     variant="destructive"
                     size="icon"
                     onClick={() => handleQuantityChange(item.id, -1)}
-                       onMouseDown={(e) => e.stopPropagation()}
+                       onMouseDown={(e: React.MouseEvent<HTMLButtonElement>) => e.stopPropagation()} // Add type for e
                   >
-
                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4"><line x1="5" x2="19" y1="12" y2="12" /></svg>
                   </Button>
                   <Button
@@ -475,7 +511,7 @@ const InventoryPage: React.FC = () => {
                 type="text"
                 id="name"
                 value={editedItemName}
-                onChange={(e) => setEditedItemName(e.target.value)}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setEditedItemName(e.target.value)} // Add type for e
                 className="col-span-3"
               />
             </div>
@@ -487,7 +523,7 @@ const InventoryPage: React.FC = () => {
                 type="number"
                 id="quantity"
                 value={editedItemQuantity}
-                onChange={(e) => setEditedItemQuantity(Number(e.target.value))}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setEditedItemQuantity(Number(e.target.value))} // Add type for e
                 className="col-span-3"
               />
             </div>
@@ -499,7 +535,7 @@ const InventoryPage: React.FC = () => {
                 type="text"
                 id="tag"
                 value={editedItemTag || ''}
-                onChange={(e) => setEditedItemTag(e.target.value)}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setEditedItemTag(e.target.value)} // Add type for e
                 className="col-span-3"
               />
             </div>
@@ -533,21 +569,21 @@ const InventoryPage: React.FC = () => {
               type="text"
               placeholder="품목 이름"
               value={newItemName}
-              onChange={e => setNewItemName(e.target.value)}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setNewItemName(e.target.value)} // Add type for e
               ref={itemNameInputRef}
             />
             <Input
               type="number"
               placeholder="수량"
               value={newItemQuantity === 0 ? '' : newItemQuantity.toString()}
-              onChange={e => setNewItemQuantity(Number(e.target.value))}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setNewItemQuantity(Number(e.target.value))} // Add type for e
               onKeyDown={handleKeyDown}
             />
             <Input
               type="text"
               placeholder="태그"
               value={newItemTag || ''}
-              onChange={e => setNewItemTag(e.target.value)}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setNewItemTag(e.target.value)} // Add type for e
               onKeyDown={handleKeyDown}
             />
           </div>
