@@ -387,138 +387,160 @@ const InventoryPage: React.FC = () => {
   }, [inventory]);
 
   return (
-    <div className="container mx-auto p-4">
-      <h1 className="text-2xl font-bold mb-4">스마트 재고</h1>
-      {/* Data Manipulation Section */}
-      <div className="flex space-x-4 mb-4">
-        <label htmlFor="importCSV" className="flex items-center space-x-2 rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 cursor-pointer"> {/* Added cursor-pointer */}
-          <FileInput className="h-4 w-4" />
-          <span>CSV 가져오기</span>
-          <input
-            type="file"
-            id="importCSV"
-            accept=".csv"
-            className="hidden"
-            onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleImportCSV(e.target.files ? e.target.files[0] : null)} // Add type for e
-          />
-        </label>
-        <Button variant="outline" onClick={handleExportCSV}><FileText className="h-4 w-4 mr-2" />CSV 내보내기</Button>
-      </div>
-       {/* Inventory Table */}
-       <Table className="rounded-md shadow-sm mb-8">
-        <TableCaption>재고 현황</TableCaption>
-        <TableHeader>
-          <TableRow>
-            <TableHead onClick={() => handleSort('name')}>
-              품목 이름
-            </TableHead>
-            <TableHead onClick={() => handleSort('quantity')}>
-              수량
-            </TableHead>
-            <TableHead onClick={() => handleSort('tag')}>
-              태그
-            </TableHead>
-            <TableHead className="text-right">작업</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {sortedInventory && sortedInventory.map((item: InventoryItem) => { // Add type for item
-            const change = realTimeChanges[item.id] || 0;
-            return (
-              <TableRow key={item.id}>
-                {/* Apply max-w-xs to constrain width */}
-                <TableCell className="font-medium whitespace-normal break-words max-w-xs">{item.name}</TableCell>
+    <div className="container mx-auto p-4 flex flex-col h-full">
+      <h1 className="text-2xl font-bold mb-4">재고 관리</h1>
+
+      {/* Add flex-grow to allow this section to take up available space */}
+      <div className="flex-grow overflow-y-auto"> {/* Added overflow-y-auto for scrolling */}
+        {/* Total Quantity by Item Name Table */}
+        <Table className="rounded-md shadow-sm mb-4">
+          <TableCaption>품목별 총 수량 및 태그</TableCaption> {/* Update caption */}
+          <TableHeader>
+            <TableRow>
+              <TableHead>품목 이름</TableHead>
+              <TableHead>총 수량</TableHead>
+              <TableHead>태그</TableHead> {/* Add new header */}
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {/* Update map function to use itemSummary */}
+            {Object.entries(itemSummary).map(([name, summary]) => (
+              <TableRow key={name}>
+                {/* Apply max-w-xs, whitespace-normal, and break-words */}
+                <TableCell className="whitespace-normal break-words max-w-xs">{name}</TableCell>
+                <TableCell>{summary.quantity}</TableCell>
+                {/* Add new cell for tags */}
                 <TableCell>
-                  {item.quantity}
-                </TableCell>
-                {/* Apply whitespace-normal to Tag cell */}
-                <TableCell className="whitespace-normal">
-                  {item.tag && item.tag.trim() !== '' ? (
-                    <div className="flex flex-wrap gap-1">
-                      {item.tag.split(',')
-                        .map((tag: string) => tag.trim()) // Add type for tag
-                        .filter((tag: string) => tag !== '') // Add type for tag
-                        .map((tag: string, index: number) => ( // Add types for tag and index
-                          <Badge key={`${item.id}-tag-${index}`} variant="default" className="font-medium">{tag}</Badge> // Use a more unique key
+                  <div className="flex flex-wrap gap-1">
+                    {Array.from(summary.tags).map((tag: string, index: number) => ( // Add types for tag and index
+                      // Add hover:bg-amber-200 and hover:text-amber-900 for hover effect
+                      <Badge
+                        key={`${name}-tag-${index}`}
+                        className="font-normal bg-amber-100 text-amber-800 border-amber-200 hover:bg-amber-200 hover:text-amber-900"
+                      >
+                        {tag}
+                      </Badge>
                     ))}
-                    </div>
-                  ) : null}
-                </TableCell>
-                {/* Add whitespace-nowrap to prevent shrinking/wrapping */}
-                <TableCell className="text-right whitespace-nowrap">
-                  <Button
-                    variant="secondary"
-                    size="icon"
-                    onClick={() => handleQuantityChange(item.id, 1)}
-                    onMouseDown={(e: React.MouseEvent<HTMLButtonElement>) => e.stopPropagation()} // Add type for e
-                  >
-                    <Plus className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    variant="destructive"
-                    size="icon"
-                    onClick={() => handleQuantityChange(item.id, -1)}
-                       onMouseDown={(e: React.MouseEvent<HTMLButtonElement>) => e.stopPropagation()} // Add type for e
-                  >
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4"><line x1="5" x2="19" y1="12" y2="12" /></svg>
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => handleEditItem(item)}
-                  >
-                    <Edit className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => handleDeleteItem(item)}
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
+                  </div>
                 </TableCell>
               </TableRow>
-            );
-          })}
-        </TableBody>
-      </Table>
+            ))}
+          </TableBody>
+        </Table>
 
-       {/* Total Quantity by Item Name Table */}
-       <Table className="rounded-md shadow-sm mb-4">
-        <TableCaption>품목별 총 수량 및 태그</TableCaption> {/* Update caption */}
-        <TableHeader>
-          <TableRow>
-            <TableHead>품목 이름</TableHead>
-            <TableHead>총 수량</TableHead>
-            <TableHead>태그</TableHead> {/* Add new header */}
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {/* Update map function to use itemSummary */}
-          {Object.entries(itemSummary).map(([name, summary]) => (
-            <TableRow key={name}>
-              {/* Apply max-w-xs, whitespace-normal, and break-words */}
-              <TableCell className="whitespace-normal break-words max-w-xs">{name}</TableCell>
-              <TableCell>{summary.quantity}</TableCell>
-              {/* Add new cell for tags */}
-              <TableCell>
-                <div className="flex flex-wrap gap-1">
-                  {Array.from(summary.tags).map((tag: string, index: number) => ( // Add types for tag and index
-                    // Add hover:bg-amber-200 and hover:text-amber-900 for hover effect
-                    <Badge
-                      key={`${name}-tag-${index}`}
-                      className="font-normal bg-amber-100 text-amber-800 border-amber-200 hover:bg-amber-200 hover:text-amber-900"
-                    >
-                      {tag}
-                    </Badge>
-                  ))}
-                </div>
-              </TableCell>
-            </TableRow>
-          ))}
-        </TableBody>
-      </Table>
+        {/* Main Inventory Table */}
+        <Table className="rounded-md shadow-sm">
+         <TableCaption>재고 현황</TableCaption>
+         <TableHeader>
+           <TableRow>
+             <TableHead onClick={() => handleSort('name')}>
+               품목 이름
+             </TableHead>
+             <TableHead onClick={() => handleSort('quantity')}>
+               수량
+             </TableHead>
+             <TableHead onClick={() => handleSort('tag')}>
+               태그
+             </TableHead>
+             <TableHead className="text-right">작업</TableHead>
+           </TableRow>
+         </TableHeader>
+         <TableBody>
+           {sortedInventory && sortedInventory.map((item: InventoryItem) => { // Add type for item
+             const change = realTimeChanges[item.id] || 0;
+             return (
+               <TableRow key={item.id}>
+                 {/* Apply max-w-xs to constrain width */}
+                 <TableCell className="font-medium whitespace-normal break-words max-w-xs">{item.name}</TableCell>
+                 <TableCell>
+                   {item.quantity}
+                 </TableCell>
+                 {/* Apply whitespace-normal to Tag cell */}
+                 <TableCell className="whitespace-normal">
+                   {item.tag && item.tag.trim() !== '' ? (
+                     <div className="flex flex-wrap gap-1">
+                       {item.tag.split(',')
+                         .map((tag: string) => tag.trim()) // Add type for tag
+                         .filter((tag: string) => tag !== '') // Add type for tag
+                         .map((tag: string, index: number) => ( // Add types for tag and index
+                           <Badge key={`${item.id}-tag-${index}`} variant="default" className="font-medium">{tag}</Badge> // Use a more unique key
+                 ))}
+                     </div>
+                   ) : null}
+                 </TableCell>
+                 {/* Add whitespace-nowrap to prevent shrinking/wrapping */}
+                 <TableCell className="text-right whitespace-nowrap">
+                   <Button
+                     variant="secondary"
+                     size="icon"
+                     onClick={() => handleQuantityChange(item.id, 1)}
+                     onMouseDown={(e: React.MouseEvent<HTMLButtonElement>) => e.stopPropagation()} // Add type for e
+                   >
+                     <Plus className="h-4 w-4" />
+                   </Button>
+                   <Button
+                     variant="destructive"
+                     size="icon"
+                     onClick={() => handleQuantityChange(item.id, -1)}
+                        onMouseDown={(e: React.MouseEvent<HTMLButtonElement>) => e.stopPropagation()} // Add type for e
+                   >
+                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4"><line x1="5" x2="19" y1="12" y2="12" /></svg>
+                   </Button>
+                   <Button
+                     variant="ghost"
+                     size="icon"
+                     onClick={() => handleEditItem(item)}
+                   >
+                     <Edit className="h-4 w-4" />
+                   </Button>
+                   <Button
+                     variant="ghost"
+                     size="icon"
+                     onClick={() => handleDeleteItem(item)}
+                   >
+                     <Trash2 className="h-4 w-4" />
+                   </Button>
+                 </TableCell>
+               </TableRow>
+             );
+           })}
+         </TableBody>
+       </Table>
+      </div>
 
+
+      {/* Sticky Add Item Section */}
+      <div className="sticky bottom-0 bg-background p-4 border-t mt-4"> {/* Added mt-4 for spacing */}
+        <h2 className="text-xl font-semibold mb-2">품목 추가</h2>
+        <div className="flex flex-col gap-2">
+          <div className="flex gap-2 items-center">
+            <Input
+              type="text"
+              placeholder="품목 이름"
+              value={newItemName}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setNewItemName(e.target.value)} // Add type for e
+              ref={itemNameInputRef}
+            />
+            <Input
+              type="number"
+              placeholder="수량"
+              value={newItemQuantity === 0 ? '' : newItemQuantity.toString()}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setNewItemQuantity(Number(e.target.value))} // Add type for e
+              onKeyDown={handleKeyDown}
+            />
+            <Input
+              type="text"
+              placeholder="태그"
+              value={newItemTag || ''}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setNewItemTag(e.target.value)} // Add type for e
+              onKeyDown={handleKeyDown}
+            />
+          </div>
+          <Button onClick={handleAddItem} className="w-full"><Plus className="mr-2" /> 품목 추가</Button>
+        </div>
+      </div>
+
+      {/* Dialogs */}
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
         <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
@@ -585,36 +607,6 @@ const InventoryPage: React.FC = () => {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-
-      {/* Add Item Section */}
-      <div className="sticky bottom-0 bg-background p-4 border-t mt-4">
-        <div className="flex flex-col gap-2">
-          <div className="flex gap-2 items-center">
-            <Input
-              type="text"
-              placeholder="품목 이름"
-              value={newItemName}
-              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setNewItemName(e.target.value)} // Add type for e
-              ref={itemNameInputRef}
-            />
-            <Input
-              type="number"
-              placeholder="수량"
-              value={newItemQuantity === 0 ? '' : newItemQuantity.toString()}
-              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setNewItemQuantity(Number(e.target.value))} // Add type for e
-              onKeyDown={handleKeyDown}
-            />
-            <Input
-              type="text"
-              placeholder="태그"
-              value={newItemTag || ''}
-              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setNewItemTag(e.target.value)} // Add type for e
-              onKeyDown={handleKeyDown}
-            />
-          </div>
-          <Button onClick={handleAddItem} className="w-full"><Plus className="mr-2" /> 품목 추가</Button>
-        </div>
-      </div>
     </div>
   );
 };
