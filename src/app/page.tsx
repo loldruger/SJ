@@ -270,29 +270,6 @@ const InventoryPage: FC = () => {
   };
 
  const handleQuantityChange = (itemId: string, change: number) => {
-    // Update real-time changes first
-    setRealTimeChanges(prevChanges => {
-      const currentChange = prevChanges[itemId] || 0;
-      const newChange = currentChange + change;
-      // Prevent quantity from going below zero in realTimeChanges preview if necessary
-      // This depends on whether you want the preview to reflect potential negative quantity
-      // or cap at zero like the actual inventory. Let's cap it for consistency:
-      const itemInInventory = inventory.find(item => item.id === itemId);
-      const potentialNewQuantity = (itemInInventory?.quantity || 0) + newChange;
-      // If potential quantity is negative, adjust the change preview
-      // Note: this logic might need refinement based on exact desired preview behavior
-      // if (potentialNewQuantity < 0) {
-      //    // Adjust change so that preview doesn't show going below zero
-      //    // This part can be complex, let's keep it simple for now and reflect the direct change
-      // }
-
-      return {
-        ...prevChanges,
-        [itemId]: newChange,
-      };
-    });
-
-   // Then update the inventory state
    setInventory(prevInventory => {
      if (!Array.isArray(prevInventory)) {
        return prevInventory;
@@ -303,6 +280,16 @@ const InventoryPage: FC = () => {
      }
      let updatedQuantity = itemToUpdate.quantity + change;
      updatedQuantity = Math.max(0, updatedQuantity); // Ensure quantity doesn't go below 0
+
+     // Update real-time changes AFTER calculating potential new quantity
+     setRealTimeChanges(prevChanges => {
+       const currentChange = prevChanges[itemId] || 0;
+       const actualChange = updatedQuantity - itemToUpdate.quantity; // Use the actual change applied
+       return {
+         ...prevChanges,
+         [itemId]: currentChange + actualChange, // Reflect the actual change in preview
+       };
+     });
 
      return prevInventory.map(item =>
        item.id === itemId ? { ...item, quantity: updatedQuantity } : item
@@ -482,7 +469,19 @@ const InventoryPage: FC = () => {
 
   return (
      <div className="container mx-auto p-4 flex flex-col h-screen"> {/* Use h-screen for full viewport height */}
-      <h1 className="text-2xl font-bold mb-4">재고 관리</h1>
+       {/* Header Section */}
+      <div className="flex justify-between items-center mb-4">
+        <h1 className="text-2xl font-bold">재고 관리</h1>
+        <div className="flex gap-2">
+          <label htmlFor="csvInput" className={cn(buttonVariants({ variant: "outline" }), "cursor-pointer")}>
+            <FileInput className="mr-2 h-4 w-4" /> CSV 가져오기
+          </label>
+          <input id="csvInput" type="file" accept=".csv" onChange={(e) => handleImportCSV(e.target.files ? e.target.files[0] : null)} className="hidden" />
+          <Button onClick={handleExportCSV} variant="outline">
+            <FileText className="mr-2 h-4 w-4" /> CSV 내보내기
+          </Button>
+        </div>
+      </div>
 
       {/* Sticky Inventory Table Section */}
       <div className="sticky top-0 bg-background z-10 pt-4 pb-2 border-b mb-4"> {/* Make inventory table sticky */}
@@ -654,13 +653,7 @@ const InventoryPage: FC = () => {
               className="flex-1" // Allow input to grow
             />
           </div>
-          <div className="flex gap-2 mt-2">
-             <label htmlFor="csvInput" className={cn(buttonVariants({ variant: "outline" }), "cursor-pointer w-1/2")}>
-                <FileInput className="mr-2" /> CSV 가져오기
-             </label>
-             <input id="csvInput" type="file" accept=".csv" onChange={(e) => handleImportCSV(e.target.files ? e.target.files[0] : null)} className="hidden" />
-             <Button onClick={handleExportCSV} variant="outline" className="w-1/2"><FileText className="mr-2" /> CSV 내보내기</Button>
-           </div>
+          {/* Removed CSV Buttons from here */}
           <Button onClick={handleAddItem} className="w-full mt-2"><Plus className="mr-2 h-4 w-4" /> 품목 추가</Button> {/* Ensure Plus icon has size */}
         </div>
       </div>
