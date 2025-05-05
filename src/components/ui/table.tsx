@@ -11,10 +11,7 @@ const Table = React.forwardRef<
       ref={ref}
       className={cn("w-full caption-bottom text-sm", className)}
       {...props}
-    >{/* Ensure no whitespace here */}
-      {children}
-    {/* Ensure no whitespace here */}
-    </table>
+    >{children}</table>{/* Ensure no whitespace here */}
   </div>
 ))
 Table.displayName = "Table"
@@ -57,7 +54,7 @@ TableFooter.displayName = "TableFooter"
 const TableRow = React.forwardRef<
   HTMLTableRowElement,
   React.HTMLAttributes<HTMLTableRowElement>
->(({ className, ...props }, ref) => (
+>(({ className, children, ...props }, ref) => ( // Destructure children
   <tr
     ref={ref}
     className={cn(
@@ -65,7 +62,7 @@ const TableRow = React.forwardRef<
       className
     )}
     {...props}
-  />
+  >{children}</tr> // Ensure no whitespace here
 ))
 TableRow.displayName = "TableRow"
 
