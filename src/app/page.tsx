@@ -62,7 +62,7 @@ const saveInventoryToDB = async (inventory: InventoryItem[]) => {
     const store = tx.objectStore(storeName);
     if (Array.isArray(inventory)) {
       // Clear existing store before putting new data (optional, depends on desired behavior)
-      // await store.clear();
+      await store.clear(); // Clear before adding all current items
       // Use Promise.all for better handling of multiple async operations
       await Promise.all(inventory.map(item => store.put(item)));
     }
@@ -171,6 +171,9 @@ const InventoryPage: FC = () => {
     if (existingItemIndex !== -1) {
       // Item exists, update quantity
       const existingItemId = inventory[existingItemIndex].id;
+      const originalQuantity = inventory[existingItemIndex].quantity;
+      const quantityChange = newItemQuantity; // The change is the quantity of the new item being added
+
       setInventory((prevInventory: InventoryItem[]) => {
         return prevInventory.map((item: InventoryItem, index: number) =>
           index === existingItemIndex
@@ -183,7 +186,7 @@ const InventoryPage: FC = () => {
         const currentChange = prevChanges[existingItemId] || 0;
         return {
           ...prevChanges,
-          [existingItemId]: currentChange + newItemQuantity,
+          [existingItemId]: currentChange + quantityChange, // Use the added quantity as change
         };
       });
       toast({
@@ -299,41 +302,39 @@ const InventoryPage: FC = () => {
 
 
  const handleQuantityChange = (itemId: string, change: number) => {
+   // Find the original quantity *before* updating the state
+   const originalItem = inventory.find(item => item.id === itemId);
+   if (!originalItem) return; // Item not found
+   const originalQuantity = originalItem.quantity;
+
+   // Calculate the new quantity
+   let newQuantity = originalQuantity + change;
+   newQuantity = Math.max(0, newQuantity); // Ensure quantity doesn't go below 0
+
+   // Calculate the actual change that will be applied
+   const actualChangeApplied = newQuantity - originalQuantity;
+
+   // Update the inventory state first
    setInventory(prevInventory => {
      if (!Array.isArray(prevInventory)) {
        return prevInventory;
      }
-
-     const itemIndex = prevInventory.findIndex(item => item.id === itemId);
-     if (itemIndex === -1) {
-         return prevInventory; // Item not found
-     }
-
-     const itemToUpdate = prevInventory[itemIndex];
-     const originalQuantity = itemToUpdate.quantity; // Store original quantity
-
-     let updatedQuantity = originalQuantity + change;
-     updatedQuantity = Math.max(0, updatedQuantity); // Ensure quantity doesn't go below 0
-
-     // Calculate the actual change applied
-     const actualChangeApplied = updatedQuantity - originalQuantity;
-
-     // Update realTimeChanges *before* updating inventory state if change occurred
-     if (actualChangeApplied !== 0) {
-         setRealTimeChanges(prevChanges => {
-             const currentTrackedChange = prevChanges[itemId] || 0;
-             return {
-                 ...prevChanges,
-                 [itemId]: currentTrackedChange + actualChangeApplied, // Reflect the actual change
-             };
-         });
-     }
-
-     // Update inventory state
-     return prevInventory.map((item, index) =>
-         index === itemIndex ? { ...item, quantity: updatedQuantity } : item
+     return prevInventory.map(item =>
+       item.id === itemId ? { ...item, quantity: newQuantity } : item
      );
    });
+
+   // Update realTimeChanges state *after* inventory state update,
+   // using the actualChangeApplied
+   if (actualChangeApplied !== 0) {
+     setRealTimeChanges(prevChanges => {
+       const currentTrackedChange = prevChanges[itemId] || 0;
+       return {
+         ...prevChanges,
+         [itemId]: currentTrackedChange + actualChangeApplied, // Use the calculated actual change
+       };
+     });
+   }
  };
 
 
@@ -380,9 +381,10 @@ const InventoryPage: FC = () => {
                );
                if (existingIndex !== -1) {
                  const existingId = mergedInventory[existingIndex].id;
+                 const originalQuantity = mergedInventory[existingIndex].quantity;
                  mergedInventory[existingIndex].quantity += newItem.quantity;
-                 // Track change for this item
-                 changesToApply[existingId] = (changesToApply[existingId] || 0) + newItem.quantity;
+                 // Track change for this item based on the difference
+                 changesToApply[existingId] = (changesToApply[existingId] || 0) + (mergedInventory[existingIndex].quantity - originalQuantity);
                } else {
                  mergedInventory.push(newItem);
                  // Initialize changes for newly imported item (as 0, since it's new)
@@ -394,7 +396,15 @@ const InventoryPage: FC = () => {
              setRealTimeChanges(prevChanges => {
                const newChanges = { ...prevChanges };
                for (const itemId in changesToApply) {
-                 newChanges[itemId] = (newChanges[itemId] || 0) + changesToApply[itemId];
+                 // For existing items, add the change. For new items, ensure they exist.
+                  if (itemId in newChanges || changesToApply[itemId] !== 0) {
+                     newChanges[itemId] = (newChanges[itemId] || 0) + changesToApply[itemId];
+                  } else {
+                      // Ensure new item exists in changes if its change was 0 (just added)
+                      if (!(itemId in newChanges)) {
+                         newChanges[itemId] = 0;
+                      }
+                  }
                }
                return newChanges;
              });
