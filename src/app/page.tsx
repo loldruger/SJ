@@ -47,33 +47,46 @@ const dbName = 'inventory-db';
 const getDB = async (): Promise<IDBPDatabase<InventoryDBSchema>> => { // Use the schema
   return openDB<InventoryDBSchema>(dbName, 1, { // Use the schema
     upgrade(db: IDBPDatabase<InventoryDBSchema>) { // Add type for db
-      db.createObjectStore(storeName, { keyPath: 'id' });
+      if (!db.objectStoreNames.contains(storeName)) {
+         db.createObjectStore(storeName, { keyPath: 'id' });
+      }
     },
   });
 };
 
 const saveInventoryToDB = async (inventory: InventoryItem[]) => {
-  const db = await getDB();
-  // Specify transaction type arguments
-  const tx = db.transaction(storeName, 'readwrite');
-  const store = tx.objectStore(storeName);
-  if (Array.isArray(inventory)) {
-    // Use Promise.all for better handling of multiple async operations
-    await Promise.all(inventory.map(item => store.put(item)));
+  try {
+    const db = await getDB();
+    // Specify transaction type arguments
+    const tx = db.transaction(storeName, 'readwrite');
+    const store = tx.objectStore(storeName);
+    if (Array.isArray(inventory)) {
+      // Clear existing store before putting new data (optional, depends on desired behavior)
+      // await store.clear();
+      // Use Promise.all for better handling of multiple async operations
+      await Promise.all(inventory.map(item => store.put(item)));
+    }
+    await tx.done; // Ensure transaction completes
+  } catch (error) {
+     console.error("Failed to save inventory to DB:", error);
+     // Optionally, inform the user via toast or other means
   }
-  await tx.done; // Ensure transaction completes before closing
-  // db.close(); // Closing frequently can be inefficient, consider keeping it open
 };
 
 const loadInventoryFromDB = async (): Promise<InventoryItem[]> => {
-  const db = await getDB();
-  // Specify transaction type arguments
-  const tx = db.transaction(storeName, 'readonly');
-  const store = tx.objectStore(storeName);
-  const allItems = await store.getAll();
-  // db.close(); // Consider keeping it open
-  // Ensure an array is always returned
-  return allItems || [];
+ try {
+    const db = await getDB();
+    // Specify transaction type arguments
+    const tx = db.transaction(storeName, 'readonly');
+    const store = tx.objectStore(storeName);
+    const allItems = await store.getAll();
+    // Ensure an array is always returned
+    return allItems || [];
+ } catch (error) {
+    console.error("Failed to load inventory from DB:", error);
+    // Optionally, inform the user
+    return []; // Return empty array on error
+ }
 };
 
 
@@ -99,6 +112,13 @@ const InventoryPage: FC = () => {
       try {
         const data = await loadInventoryFromDB();
         setInventory(data || []);
+        // Initialize realTimeChanges based on loaded data (optional, start fresh)
+        // const initialChanges = data.reduce((acc, item) => {
+        //   acc[item.id] = 0;
+        //   return acc;
+        // }, {} as { [itemId: string]: number });
+        // setRealTimeChanges(initialChanges);
+        setRealTimeChanges({}); // Start with no changes tracked for the new session
       } catch (error) {
         console.error("Failed to load inventory from DB:", error);
         toast({
@@ -114,7 +134,9 @@ const InventoryPage: FC = () => {
   }, [toast]); // Added toast to dependency array
 
   useEffect(() => {
-    if (inventory && Array.isArray(inventory) && inventory.length > 0) { // Check if inventory has data before saving
+    // Save whenever inventory changes, but only if it's an array and has items
+    // Debounce this or make it less frequent if performance becomes an issue
+    if (Array.isArray(inventory) && inventory.length >= 0) { // Allow saving empty inventory state
       saveInventoryToDB(inventory).catch(error => {
         console.error("Failed to save inventory to DB:", error);
         toast({
@@ -127,23 +149,24 @@ const InventoryPage: FC = () => {
   }, [inventory, toast]); // Added toast to dependency array
 
   const handleAddItem = () => {
-    if (newItemName.trim() === '' || newItemQuantity === 0) {
+    if (newItemName.trim() === '' || newItemQuantity <= 0) { // Ensure quantity is positive
       toast({
         title: "Error",
-        description: "Item name and quantity cannot be empty.",
+        description: "품목 이름과 0보다 큰 수량을 입력해주세요.",
         variant: "destructive",
       });
       return;
     }
 
     const trimmedNewItemName = newItemName.trim();
-    const trimmedNewItemTag = newItemTag?.trim() || ''; // Ensure tag is always a string
+    const trimmedNewItemTag = newItemTag?.trim() || ''; // Ensure tag is always a string, handle undefined
 
     // Check if item with same name and tag already exists
     const existingItemIndex = inventory.findIndex(
       (item: InventoryItem) => item.name === trimmedNewItemName &&
              (item.tag || '') === trimmedNewItemTag // Compare trimmed tags or empty strings
     );
+
 
     if (existingItemIndex !== -1) {
       // Item exists, update quantity
@@ -165,12 +188,12 @@ const InventoryPage: FC = () => {
       });
       toast({
         title: "Success",
-        description: `${trimmedNewItemName} ${trimmedNewItemTag ? `(${trimmedNewItemTag})` : ''} quantity updated.`,
+        description: `${trimmedNewItemName} ${trimmedNewItemTag ? `(${trimmedNewItemTag})` : ''} 수량이 업데이트되었습니다.`,
       });
     } else {
       // Item does not exist, add new item
       const newItem: InventoryItem = {
-        id: Date.now().toString(),
+        id: Date.now().toString() + Math.random().toString(36).substring(2, 15), // More robust ID
         name: trimmedNewItemName,
         quantity: newItemQuantity,
         tag: trimmedNewItemTag === '' ? undefined : trimmedNewItemTag, // Store empty tag as undefined
@@ -183,7 +206,7 @@ const InventoryPage: FC = () => {
       }));
       toast({
         title: "Success",
-        description: `${trimmedNewItemName} ${trimmedNewItemTag ? `(${trimmedNewItemTag})` : ''} added to inventory.`,
+        description: `${trimmedNewItemName} ${trimmedNewItemTag ? `(${trimmedNewItemTag})` : ''} 품목이 추가되었습니다.`,
       });
     }
 
@@ -200,11 +223,13 @@ const InventoryPage: FC = () => {
     setIsEditDialogOpen(true);
     setEditedItemName(item.name);
     setEditedItemQuantity(item.quantity);
-    setEditedItemTag(item.tag || '');
+    setEditedItemTag(item.tag || ''); // Ensure tag is a string for input
   };
 
   const handleUpdateItem = () => {
     if (!selectedItem) return;
+
+    const trimmedEditedTag = editedItemTag?.trim() || ''; // Trim and handle undefined
 
     // Find the original item to calculate the quantity difference
     const originalItem = inventory.find((item: InventoryItem) => item.id === selectedItem.id);
@@ -219,7 +244,7 @@ const InventoryPage: FC = () => {
         }
       return prevInventory.map((item: InventoryItem) =>
         item.id === selectedItem.id
-          ? { ...item, name: editedItemName, quantity: editedItemQuantity, tag: editedItemTag || undefined } // Store empty tag as undefined
+          ? { ...item, name: editedItemName.trim(), quantity: editedItemQuantity, tag: trimmedEditedTag === '' ? undefined : trimmedEditedTag } // Store empty tag as undefined
           : item
       );
     });
@@ -238,7 +263,7 @@ const InventoryPage: FC = () => {
     setSelectedItem(null);
     toast({
       title: "Success",
-      description: `${editedItemName} updated successfully.`,
+      description: `${editedItemName} 품목이 수정되었습니다.`,
     });
   };
 
@@ -253,46 +278,60 @@ const InventoryPage: FC = () => {
        if (!Array.isArray(prevInventory)) {
           return prevInventory;
         }
-      // Also remove from realTimeChanges
-      setRealTimeChanges(prevChanges => {
-          const newChanges = { ...prevChanges };
-          delete newChanges[selectedItem.id];
-          return newChanges;
-      });
-      return prevInventory.filter((item: InventoryItem) => item.id !== selectedItem.id);
+       // Filter out the item
+       const newInventory = prevInventory.filter((item: InventoryItem) => item.id !== selectedItem.id);
+
+       // Also remove from realTimeChanges
+       setRealTimeChanges(prevChanges => {
+           const newChanges = { ...prevChanges };
+           delete newChanges[selectedItem.id];
+           return newChanges;
+       });
+       return newInventory; // Return the filtered inventory
     });
     setIsDeleteConfirmationOpen(false);
     setSelectedItem(null);
     toast({
       title: "Success",
-      description: "Item deleted successfully.",
+      description: "품목이 삭제되었습니다.",
     });
   };
+
 
  const handleQuantityChange = (itemId: string, change: number) => {
    setInventory(prevInventory => {
      if (!Array.isArray(prevInventory)) {
        return prevInventory;
      }
-     const itemToUpdate = prevInventory.find(item => item.id === itemId);
-     if (!itemToUpdate) {
-       return prevInventory;
+
+     const itemIndex = prevInventory.findIndex(item => item.id === itemId);
+     if (itemIndex === -1) {
+         return prevInventory; // Item not found
      }
-     let updatedQuantity = itemToUpdate.quantity + change;
+
+     const itemToUpdate = prevInventory[itemIndex];
+     const originalQuantity = itemToUpdate.quantity; // Store original quantity
+
+     let updatedQuantity = originalQuantity + change;
      updatedQuantity = Math.max(0, updatedQuantity); // Ensure quantity doesn't go below 0
 
-     // Update real-time changes AFTER calculating potential new quantity
-     setRealTimeChanges(prevChanges => {
-       const currentChange = prevChanges[itemId] || 0;
-       const actualChange = updatedQuantity - itemToUpdate.quantity; // Use the actual change applied
-       return {
-         ...prevChanges,
-         [itemId]: currentChange + actualChange, // Reflect the actual change in preview
-       };
-     });
+     // Calculate the actual change applied
+     const actualChangeApplied = updatedQuantity - originalQuantity;
 
-     return prevInventory.map(item =>
-       item.id === itemId ? { ...item, quantity: updatedQuantity } : item
+     // Update realTimeChanges *before* updating inventory state if change occurred
+     if (actualChangeApplied !== 0) {
+         setRealTimeChanges(prevChanges => {
+             const currentTrackedChange = prevChanges[itemId] || 0;
+             return {
+                 ...prevChanges,
+                 [itemId]: currentTrackedChange + actualChangeApplied, // Reflect the actual change
+             };
+         });
+     }
+
+     // Update inventory state
+     return prevInventory.map((item, index) =>
+         index === itemIndex ? { ...item, quantity: updatedQuantity } : item
      );
    });
  };
@@ -311,7 +350,7 @@ const InventoryPage: FC = () => {
             console.error("CSV Import Errors:", results.errors);
             toast({
               title: "Error",
-              description: `Error importing CSV file: ${results.errors[0].message}. Check console for details.`,
+              description: `CSV 가져오기 오류: ${results.errors[0].message}. 자세한 내용은 콘솔을 확인하세요.`,
               variant: "destructive",
             });
             return; // Stop processing if errors occurred
@@ -320,52 +359,65 @@ const InventoryPage: FC = () => {
         // Process data if no errors
         if (results.data && Array.isArray(results.data)) {
           const importedInventory: InventoryItem[] = results.data
-            .filter((row: any) => row && typeof row === 'object' && row.name && row.name.trim() !== '') // Ensure name is not empty
+            .filter((row: any) => row && typeof row === 'object' && row.name && row.name.trim() !== '' && row.quantity !== undefined) // Ensure name and quantity exist
             .map((row: any) => ({
               id: Date.now().toString() + Math.random().toString(36).substring(2, 15),
               name: row.name.trim(),
-              quantity: Number(row.quantity) || 0, // Default to 0 if quantity is invalid
+              quantity: Number(row.quantity) || 0, // Default to 0 if quantity is invalid or missing
               tag: row.tag?.trim() || undefined, // Store empty tag as undefined
             }));
 
            // Merge imported items with existing inventory
            setInventory(prevInventory => {
-            const mergedInventory = [...prevInventory];
-            importedInventory.forEach(newItem => {
-              const existingIndex = mergedInventory.findIndex(
-                existingItem => existingItem.name === newItem.name && (existingItem.tag || '') === (newItem.tag || '')
-              );
-              if (existingIndex !== -1) {
-                mergedInventory[existingIndex].quantity += newItem.quantity;
-                // Update realTimeChanges for merged items
-                const existingId = mergedInventory[existingIndex].id;
-                 setRealTimeChanges(prev => ({
-                    ...prev,
-                    [existingId]: (prev[existingId] || 0) + newItem.quantity,
-                }));
-              } else {
-                mergedInventory.push(newItem);
-                // Initialize realTimeChanges for newly imported items
-                 setRealTimeChanges(prev => ({
-                    ...prev,
-                    [newItem.id]: 0,
-                }));
-              }
-            });
+             // Ensure prevInventory is an array
+             const currentInventory = Array.isArray(prevInventory) ? [...prevInventory] : [];
+             const mergedInventory = [...currentInventory];
+             const changesToApply: { [itemId: string]: number } = {}; // Track changes for this import
+
+             importedInventory.forEach(newItem => {
+               const existingIndex = mergedInventory.findIndex(
+                 existingItem => existingItem.name === newItem.name && (existingItem.tag || '') === (newItem.tag || '')
+               );
+               if (existingIndex !== -1) {
+                 const existingId = mergedInventory[existingIndex].id;
+                 mergedInventory[existingIndex].quantity += newItem.quantity;
+                 // Track change for this item
+                 changesToApply[existingId] = (changesToApply[existingId] || 0) + newItem.quantity;
+               } else {
+                 mergedInventory.push(newItem);
+                 // Initialize changes for newly imported item (as 0, since it's new)
+                 changesToApply[newItem.id] = 0;
+               }
+             });
+
+            // Apply all tracked changes to realTimeChanges state at once
+             setRealTimeChanges(prevChanges => {
+               const newChanges = { ...prevChanges };
+               for (const itemId in changesToApply) {
+                 newChanges[itemId] = (newChanges[itemId] || 0) + changesToApply[itemId];
+               }
+               return newChanges;
+             });
+
             return mergedInventory;
           });
 
           toast({
             title: "Success",
-            description: "CSV imported successfully.",
+            description: "CSV 가져오기 완료.",
           });
+        } else {
+           toast({
+             title: "Info",
+             description: "CSV 파일에 유효한 데이터가 없습니다.",
+           });
         }
        },
        error: (error: Papa.ParseError) => { // Add error handler
          console.error("CSV Parsing Error:", error);
          toast({
            title: "Error",
-           description: `Failed to parse CSV file: ${error.message}`,
+           description: `CSV 파일 파싱 오류: ${error.message}`,
            variant: "destructive",
          });
        }
@@ -380,7 +432,7 @@ const InventoryPage: FC = () => {
     if (!inventory || inventory.length === 0) {
         toast({
             title: "Info",
-            description: "Inventory is empty. Nothing to export.",
+            description: "재고가 비어있어 내보낼 수 없습니다.",
         });
         return;
     }
@@ -390,7 +442,7 @@ const InventoryPage: FC = () => {
       data: inventory.map((item: InventoryItem) => ({ name: item.name, quantity: item.quantity, tag: item.tag || '' })),
     });
 
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' }); // Specify charset
+    const blob = new Blob([`\uFEFF${csv}`], { type: 'text/csv;charset=utf-8;' }); // Add BOM for Excel compatibility
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
@@ -401,7 +453,7 @@ const InventoryPage: FC = () => {
     window.URL.revokeObjectURL(url);
     toast({
       title: "Success",
-      description: "CSV exported successfully.",
+      description: "CSV 내보내기 완료.",
     });
   };
 
@@ -429,11 +481,13 @@ const InventoryPage: FC = () => {
       const aValue = a[sortColumn];
       const bValue = b[sortColumn];
 
-      // Handle potential undefined values for sorting
-      if (aValue === undefined && bValue === undefined) return 0;
-      if (aValue === undefined) return 1 * direction; // undefined sorts last in asc
-      if (bValue === undefined) return -1 * direction; // undefined sorts last in asc
+      // Handle potential undefined values for sorting (treat undefined/null as lowest)
+      const aIsNil = aValue === undefined || aValue === null || aValue === '';
+      const bIsNil = bValue === undefined || bValue === null || bValue === '';
 
+      if (aIsNil && bIsNil) return 0;
+      if (aIsNil) return -1 * direction; // Place nil first in asc
+      if (bIsNil) return 1 * direction; // Place nil first in asc
 
       if (typeof aValue === 'number' && typeof bValue === 'number') {
         return (aValue - bValue) * direction;
@@ -442,11 +496,12 @@ const InventoryPage: FC = () => {
       // Ensure values are strings for localeCompare
       const aString = String(aValue) || '';
       const bString = String(bValue) || '';
-      return aString.localeCompare(bString) * direction;
+      // Use numeric collation for potentially numeric strings within tags/names if needed
+      return aString.localeCompare(bString, undefined, { numeric: true }) * direction;
     });
   }, [inventory, sortColumn, sortDirection]);
 
-  // Modify this useMemo hook
+  // Item Summary with tags included
   const itemSummary = useMemo(() => {
     if (!inventory || !Array.isArray(inventory)) return {};
     return inventory.reduce((acc: { [name: string]: { quantity: number; tags: Set<string> } }, item: InventoryItem) => {
@@ -455,7 +510,7 @@ const InventoryPage: FC = () => {
         acc[key] = { quantity: 0, tags: new Set<string>() };
       }
       acc[key].quantity += item.quantity;
-      if (item.tag) {
+      if (item.tag && item.tag.trim() !== '') {
         item.tag.split(',') // Split by comma
            .map(tag => tag.trim()) // Trim whitespace
            .filter(tag => tag !== '') // Remove empty tags
@@ -466,6 +521,7 @@ const InventoryPage: FC = () => {
       return acc;
     }, {});
   }, [inventory]);
+
 
   return (
      <div className="container mx-auto p-4 flex flex-col h-screen"> {/* Use h-screen for full viewport height */}
@@ -485,9 +541,8 @@ const InventoryPage: FC = () => {
 
       {/* Sticky Inventory Table Section */}
       <div className="sticky top-0 bg-background z-10 pt-4 pb-2 border-b mb-4"> {/* Make inventory table sticky */}
-         {/* Main Inventory Table */}
+         {/* Main Inventory Table Header */}
         <Table className="rounded-md shadow-sm bg-background"> {/* Ensure background for sticky */}
-         <TableCaption>재고 현황</TableCaption>
          <TableHeader>
            <TableRow>
              <TableHead onClick={() => handleSort('name')} className="cursor-pointer hover:bg-muted">
@@ -502,17 +557,15 @@ const InventoryPage: FC = () => {
              <TableHead className="text-right">작업</TableHead>
            </TableRow>
          </TableHeader>
-         {/* Removed TableBody wrapping from sticky section */}
        </Table>
       </div>
 
 
-      {/* Scrollable Content Area (including Summary Table) */}
-       <div className="flex-grow overflow-y-auto pb-[200px]"> {/* Add padding-bottom to prevent overlap */}
+      {/* Scrollable Content Area (Inventory Items) */}
+       <div className="flex-grow overflow-y-auto pb-4"> {/* Adjusted padding */}
           {/* Render Table Body here for scrolling */}
          <Table className="rounded-md shadow-sm mb-4">
-            {/* <TableCaption>재고 현황 (Scrollable Body)</TableCaption> */}
-             {/* No Header here, it's sticky above */}
+            {/* No Header here, it's sticky above */}
             <TableBody>
              {sortedInventory && sortedInventory.map((item: InventoryItem) => { // Add type for item
                const change = realTimeChanges[item.id] || 0;
@@ -566,6 +619,7 @@ const InventoryPage: FC = () => {
                        variant="ghost"
                        size="icon"
                        onClick={() => handleEditItem(item)}
+                       onMouseDown={(e: MouseEvent<HTMLButtonElement>) => e.stopPropagation()} // Prevent row click
                      >
                        <Edit className="h-4 w-4" />
                      </Button>
@@ -573,6 +627,7 @@ const InventoryPage: FC = () => {
                        variant="ghost"
                        size="icon"
                        onClick={() => handleDeleteItem(item)}
+                       onMouseDown={(e: MouseEvent<HTMLButtonElement>) => e.stopPropagation()} // Prevent row click
                      >
                        <Trash2 className="h-4 w-4" />
                      </Button>
@@ -580,6 +635,14 @@ const InventoryPage: FC = () => {
                  </TableRow>
                );
              })}
+             {/* Add row for empty state */}
+             {(!sortedInventory || sortedInventory.length === 0) && (
+                 <TableRow>
+                     <TableCell colSpan={4} className="text-center text-muted-foreground h-24">
+                         재고 목록이 비어 있습니다.
+                     </TableCell>
+                 </TableRow>
+             )}
            </TableBody>
          </Table>
        </div>
@@ -587,41 +650,55 @@ const InventoryPage: FC = () => {
       {/* Sticky Bottom Section (Summary Table and Add Item) */}
       <div className="sticky bottom-0 bg-background border-t mt-auto z-10 p-4"> {/* Use mt-auto and z-10 */}
         {/* Total Quantity by Item Name Table */}
-        <Table className="rounded-md shadow-sm mb-4">
-          <TableCaption>품목별 총 수량 및 태그</TableCaption> {/* Update caption */}
-          <TableHeader>
-            <TableRow>
-              <TableHead>품목 이름</TableHead>
-              <TableHead>총 수량</TableHead>
-              <TableHead>태그</TableHead> {/* Add new header */}
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {/* Update map function to use itemSummary */}
-            {Object.entries(itemSummary).map(([name, summary]) => (
-              <TableRow key={name}>
-                {/* Apply max-w-xs, whitespace-normal, and break-words */}
-                <TableCell className="whitespace-normal break-words max-w-xs">{name}</TableCell>
-                <TableCell>{summary.quantity}</TableCell>
-                {/* Add new cell for tags */}
-                <TableCell>
-                  <div className="flex flex-wrap gap-1">
-                    {Array.from(summary.tags).map((tag: string, index: number) => ( // Add types for tag and index
-                      // Add hover:bg-amber-200 and hover:text-amber-900 for hover effect
-                      <Badge
-                        key={`${name}-tag-${index}`}
-                        variant="secondary" // Use secondary variant for consistency
-                        className="font-normal rounded-sm bg-amber-100 text-amber-800 border-amber-200 hover:bg-amber-200 hover:text-amber-900"
-                      >
-                        {tag}
-                      </Badge>
-                    ))}
-                  </div>
-                </TableCell>
+        <div className="mb-4 max-h-48 overflow-y-auto"> {/* Wrap summary table in scrollable container */}
+          <Table className="rounded-md shadow-sm">
+            <TableCaption>품목별 총 수량 및 태그</TableCaption> {/* Update caption */}
+            <TableHeader>
+              <TableRow>
+                <TableHead>품목 이름</TableHead>
+                <TableHead>총 수량</TableHead>
+                <TableHead>태그</TableHead> {/* Add new header */}
               </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+            </TableHeader>
+            <TableBody>
+              {/* Update map function to use itemSummary */}
+              {Object.entries(itemSummary)
+                  .sort(([nameA], [nameB]) => nameA.localeCompare(nameB)) // Sort summary alphabetically by name
+                  .map(([name, summary]) => (
+                <TableRow key={name}>
+                  {/* Apply max-w-xs, whitespace-normal, and break-words */}
+                  <TableCell className="whitespace-normal break-words max-w-xs">{name}</TableCell>
+                  <TableCell>{summary.quantity}</TableCell>
+                  {/* Add new cell for tags */}
+                  <TableCell>
+                    <div className="flex flex-wrap gap-1">
+                      {Array.from(summary.tags)
+                          .sort() // Sort tags alphabetically
+                          .map((tag: string, index: number) => ( // Add types for tag and index
+                        // Add hover:bg-amber-200 and hover:text-amber-900 for hover effect
+                        <Badge
+                          key={`${name}-tag-${index}`}
+                          variant="secondary" // Use secondary variant for consistency
+                          className="font-normal rounded-sm bg-amber-100 text-amber-800 border-amber-200 hover:bg-amber-200 hover:text-amber-900"
+                        >
+                          {tag}
+                        </Badge>
+                      ))}
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))}
+               {/* Add row for empty state */}
+               {Object.keys(itemSummary).length === 0 && (
+                   <TableRow>
+                       <TableCell colSpan={3} className="text-center text-muted-foreground h-16">
+                           요약할 품목이 없습니다.
+                       </TableCell>
+                   </TableRow>
+               )}
+            </TableBody>
+          </Table>
+        </div>
 
 
          {/* Add Item Section */}
@@ -635,14 +712,16 @@ const InventoryPage: FC = () => {
               onChange={(e: ChangeEvent<HTMLInputElement>) => setNewItemName(e.target.value)} // Add type for e
               ref={itemNameInputRef} // Assign ref here
               className="flex-1" // Allow input to grow
+              onKeyDown={handleKeyDown} // Add key down listener here as well
             />
             <Input
               type="number"
               placeholder="수량"
-              value={newItemQuantity === 0 ? '' : newItemQuantity.toString()}
-              onChange={(e: ChangeEvent<HTMLInputElement>) => setNewItemQuantity(Number(e.target.value))} // Add type for e
+              value={newItemQuantity <= 0 ? '' : newItemQuantity.toString()} // Handle 0 or negative input
+              onChange={(e: ChangeEvent<HTMLInputElement>) => setNewItemQuantity(Math.max(0, Number(e.target.value)))} // Ensure non-negative
               onKeyDown={handleKeyDown} // Add key down listener
               className="w-24" // Fixed width for quantity
+              min="1" // Set minimum value for browser validation (optional)
             />
             <Input
               type="text"
@@ -653,7 +732,6 @@ const InventoryPage: FC = () => {
               className="flex-1" // Allow input to grow
             />
           </div>
-          {/* Removed CSV Buttons from here */}
           <Button onClick={handleAddItem} className="w-full mt-2"><Plus className="mr-2 h-4 w-4" /> 품목 추가</Button> {/* Ensure Plus icon has size */}
         </div>
       </div>
@@ -662,7 +740,7 @@ const InventoryPage: FC = () => {
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
         <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
-            <DialogTitle>Edit Item</DialogTitle>
+            <DialogTitle>품목 수정</DialogTitle>
             <DialogDescription>
               수정할 항목의 이름, 수량, 태그를 변경하세요.
             </DialogDescription>
@@ -688,8 +766,9 @@ const InventoryPage: FC = () => {
                 type="number"
                 id="quantity"
                 value={editedItemQuantity}
-                onChange={(e: ChangeEvent<HTMLInputElement>) => setEditedItemQuantity(Number(e.target.value))} // Add type for e
+                onChange={(e: ChangeEvent<HTMLInputElement>) => setEditedItemQuantity(Math.max(0, Number(e.target.value)))} // Ensure non-negative
                 className="col-span-3"
+                min="0" // Allow editing to 0
               />
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
