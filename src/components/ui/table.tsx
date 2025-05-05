@@ -11,8 +11,9 @@ const Table = React.forwardRef<
       ref={ref}
       className={cn("w-full caption-bottom text-sm", className)}
       {...props}
-    > {/* Make it non-self-closing */}
-      {children} {/* Render children here */}
+    >{/* Ensure no whitespace here */}
+      {children}
+    {/* Ensure no whitespace here */}
     </table>
   </div>
 ))
