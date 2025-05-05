@@ -1,5 +1,4 @@
-
-"use client";
+'use client'
 
 import type { ChangeEvent, FC, KeyboardEvent, MouseEvent, RefObject } from 'react';
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
@@ -549,39 +548,30 @@ const InventoryPage: FC = () => {
         </div>
       </div>
 
-      {/* Sticky Inventory Table Section */}
-      <div className="sticky top-0 bg-background z-10 pt-4 pb-2 border-b mb-4"> {/* Make inventory table sticky */}
-         {/* Main Inventory Table Header */}
-        <Table className="rounded-md shadow-sm bg-background"> {/* Ensure background for sticky */}
-         <TableHeader>
-           <TableRow>
-             <TableHead onClick={() => handleSort('name')} className="cursor-pointer hover:bg-muted">
-               품목 이름 {sortColumn === 'name' ? (sortDirection === 'asc' ? '🔼' : '🔽') : ''}
-             </TableHead>
-             <TableHead onClick={() => handleSort('quantity')} className="cursor-pointer hover:bg-muted">
-               수량 {sortColumn === 'quantity' ? (sortDirection === 'asc' ? '🔼' : '🔽') : ''}
-             </TableHead>
-             <TableHead onClick={() => handleSort('tag')} className="cursor-pointer hover:bg-muted">
-               태그 {sortColumn === 'tag' ? (sortDirection === 'asc' ? '🔼' : '🔽') : ''}
-             </TableHead>
-             <TableHead className="text-right">작업</TableHead>
-           </TableRow>
-         </TableHeader>
-       </Table>
-      </div>
-
+      {/* REMOVED the separate sticky div for header */}
 
       {/* Scrollable Content Area (Inventory Items) */}
-       <div className="flex-grow overflow-y-auto pb-4"> {/* Adjusted padding */}
-          {/* Render Table Body here for scrolling */}
-         <Table className="rounded-md shadow-sm mb-4">
-            {/* No Header here, it's sticky above */}
-            <TableBody>
-             {sortedInventory && sortedInventory.map((item: InventoryItem) => { // Add type for item
+       <div className="flex-grow overflow-y-auto pb-4">
+         <Table className="rounded-md shadow-sm mb-4 relative border-collapse">
+           <TableHeader className="sticky top-0 bg-background z-10">
+              <TableRow>
+                <TableHead onClick={() => handleSort('name')} className="cursor-pointer hover:bg-muted">
+                  품목 이름 {sortColumn === 'name' ? (sortDirection === 'asc' ? '🔼' : '🔽') : ''}
+                </TableHead>
+                <TableHead onClick={() => handleSort('quantity')} className="cursor-pointer hover:bg-muted">
+                  수량 {sortColumn === 'quantity' ? (sortDirection === 'asc' ? '🔼' : '🔽') : ''}
+                </TableHead>
+                <TableHead onClick={() => handleSort('tag')} className="cursor-pointer hover:bg-muted">
+                  태그 {sortColumn === 'tag' ? (sortDirection === 'asc' ? '🔼' : '🔽') : ''}
+                </TableHead>
+                <TableHead className="text-right">작업</TableHead>
+              </TableRow>
+           </TableHeader>
+           <TableBody>
+             {sortedInventory && sortedInventory.map((item: InventoryItem) => {
                const change = realTimeChanges[item.id] || 0;
                return (
                  <TableRow key={item.id}>
-                   {/* Apply max-w-xs to constrain width */}
                    <TableCell className="font-medium whitespace-normal break-words max-w-xs">{item.name}
                    {change !== 0 && (
                     <span className={cn("ml-1 text-xs", change > 0 ? "text-positive" : "text-destructive")}>
@@ -592,44 +582,40 @@ const InventoryPage: FC = () => {
                    <TableCell>
                      {item.quantity}
                    </TableCell>
-                   {/* Apply whitespace-normal to Tag cell */}
                    <TableCell className="whitespace-normal">
                      {item.tag && item.tag.trim() !== '' ? (
                        <div className="flex flex-wrap gap-1">
                          {item.tag.split(',')
-                           .map((tag: string) => tag.trim()) // Add type for tag
-                           .filter((tag: string) => tag !== '') // Add type for tag
-                           .map((tag: string, index: number) => ( // Add types for tag and index
-                             // Use Badge component for tags
+                           .map((tag: string) => tag.trim())
+                           .filter((tag: string) => tag !== '')
+                           .map((tag: string, index: number) => (
                              <Badge key={`${item.id}-tag-${index}`} variant="secondary" className="font-normal rounded-sm">{tag}</Badge>
                          ))}
                        </div>
                      ) : null}
                    </TableCell>
-                   {/* Add whitespace-nowrap to prevent shrinking/wrapping */}
                    <TableCell className="text-right whitespace-nowrap">
                      <Button
-                       variant="ghost" // Changed variant to ghost
+                       variant="ghost"
                        size="icon"
                        onClick={() => handleQuantityChange(item.id, 1)}
-                       onMouseDown={(e: MouseEvent<HTMLButtonElement>) => e.stopPropagation()} // Add type for e
+                       onMouseDown={(e: MouseEvent<HTMLButtonElement>) => e.stopPropagation()}
                      >
-                       <Plus className="h-4 w-4 text-positive" /> {/* Positive color */}
+                       <Plus className="h-4 w-4 text-positive" />
                      </Button>
                      <Button
-                       variant="ghost" // Changed variant to ghost
+                       variant="ghost"
                        size="icon"
                        onClick={() => handleQuantityChange(item.id, -1)}
-                       onMouseDown={(e: MouseEvent<HTMLButtonElement>) => e.stopPropagation()} // Add type for e
+                       onMouseDown={(e: MouseEvent<HTMLButtonElement>) => e.stopPropagation()}
                      >
-                       {/* Use Minus icon from lucide-react */}
                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4 text-destructive"><line x1="5" x2="19" y1="12" y2="12" /></svg>
                      </Button>
                      <Button
                        variant="ghost"
                        size="icon"
                        onClick={() => handleEditItem(item)}
-                       onMouseDown={(e: MouseEvent<HTMLButtonElement>) => e.stopPropagation()} // Prevent row click
+                       onMouseDown={(e: MouseEvent<HTMLButtonElement>) => e.stopPropagation()}
                      >
                        <Edit className="h-4 w-4" />
                      </Button>
@@ -637,7 +623,7 @@ const InventoryPage: FC = () => {
                        variant="ghost"
                        size="icon"
                        onClick={() => handleDeleteItem(item)}
-                       onMouseDown={(e: MouseEvent<HTMLButtonElement>) => e.stopPropagation()} // Prevent row click
+                       onMouseDown={(e: MouseEvent<HTMLButtonElement>) => e.stopPropagation()}
                      >
                        <Trash2 className="h-4 w-4" />
                      </Button>
@@ -645,7 +631,6 @@ const InventoryPage: FC = () => {
                  </TableRow>
                );
              })}
-             {/* Add row for empty state */}
              {(!sortedInventory || sortedInventory.length === 0) && (
                  <TableRow>
                      <TableCell colSpan={4} className="text-center text-muted-foreground h-24">
