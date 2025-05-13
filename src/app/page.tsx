@@ -5,7 +5,7 @@ import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
 import { Button, buttonVariants } from "@/components/ui/button"; // Import buttonVariants
-import { Trash2, Edit, FileInput, FileText, Plus, ChevronDown, ChevronUp } from 'lucide-react'; // Import ChevronDown and ChevronUp
+import { Trash2, Edit, FileInput, FileText, Plus, ChevronDown, ChevronUp, RotateCcw } from 'lucide-react'; // Import RotateCcw
 import { useToast } from "@/hooks/use-toast";
 import {
   AlertDialog,
@@ -100,6 +100,7 @@ const InventoryPage: FC = () => {
   const [editedItemQuantity, setEditedItemQuantity] = useState(0);
   const [editedItemTag, setEditedItemTag] = useState<string | undefined>('');
   const [isDeleteConfirmationOpen, setIsDeleteConfirmationOpen] = useState(false);
+  const [isClearAllConfirmationOpen, setIsClearAllConfirmationOpen] = useState(false); // State for clear all confirmation
   const [realTimeChanges, setRealTimeChanges] = useState<{ [itemId: string]: number }>({});
   const [sortColumn, setSortColumn] = useState<keyof InventoryItem | null>('name');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
@@ -297,6 +298,16 @@ const InventoryPage: FC = () => {
     toast({
       title: "Success",
       description: "품목이 삭제되었습니다.",
+    });
+  };
+
+  const handleClearAllItems = () => {
+    setInventory([]);
+    setRealTimeChanges({});
+    setIsClearAllConfirmationOpen(false);
+    toast({
+      title: "Success",
+      description: "모든 품목이 삭제되었습니다.",
     });
   };
 
@@ -545,6 +556,10 @@ const InventoryPage: FC = () => {
           <input id="csvInput" type="file" accept=".csv" onChange={(e) => handleImportCSV(e.target.files ? e.target.files[0] : null)} className="hidden" />
           <Button onClick={handleExportCSV} variant="outline">
             <FileText className="mr-2 h-4 w-4" /> CSV 내보내기
+          </Button>
+          <Button onClick={() => setIsClearAllConfirmationOpen(true)} variant="outline" size="icon" className="w-auto px-2">
+            <RotateCcw className="h-4 w-4" />
+            <span className="ml-1 sm:inline hidden">초기화</span>
           </Button>
         </div>
       </div>
@@ -798,6 +813,22 @@ const InventoryPage: FC = () => {
             <AlertDialogCancel onClick={() => setIsDeleteConfirmationOpen(false)}>취소</AlertDialogCancel>
              {/* Apply destructive variant directly */}
             <AlertDialogAction onClick={confirmDeleteItem} className={cn(buttonVariants({ variant: "destructive" }))}>삭제</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Clear All Confirmation Dialog */}
+      <AlertDialog open={isClearAllConfirmationOpen} onOpenChange={setIsClearAllConfirmationOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>전체 삭제 확인</AlertDialogTitle>
+            <AlertDialogDescription>
+              모든 재고 품목을 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setIsClearAllConfirmationOpen(false)}>취소</AlertDialogCancel>
+            <AlertDialogAction onClick={handleClearAllItems} className={cn(buttonVariants({ variant: "destructive" }))}>전체 삭제</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
