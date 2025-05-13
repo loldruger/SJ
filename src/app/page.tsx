@@ -5,7 +5,7 @@ import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
 import { Button, buttonVariants } from "@/components/ui/button"; // Import buttonVariants
-import { Trash2, Edit, FileInput, FileText, Plus } from 'lucide-react';
+import { Trash2, Edit, FileInput, FileText, Plus, ChevronDown, ChevronUp } from 'lucide-react'; // Import ChevronDown and ChevronUp
 import { useToast } from "@/hooks/use-toast";
 import {
   AlertDialog,
@@ -105,6 +105,7 @@ const InventoryPage: FC = () => {
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
   const itemNameInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
+  const [isSummaryVisible, setIsSummaryVisible] = useState(true); // State for summary visibility
 
   useEffect(() => {
     const loadInitialInventory = async () => {
@@ -521,14 +522,14 @@ const InventoryPage: FC = () => {
       acc[key].quantity += item.quantity;
       if (item.tag && item.tag.trim() !== '') {
         item.tag.split(',') // Split by comma
-           .map(tag => tag.trim()) // Trim whitespace
-           .filter(tag => tag !== '') // Remove empty tags
-           .forEach((tag: string) => { // Add type for tag
+           .map((tag: string) => tag.trim()) // Explicitly type tag
+           .filter((tag: string) => tag !== '') // Explicitly type tag
+           .forEach((tag: string) => { // Explicitly type tag
              acc[key].tags.add(tag); // Add tag to the Set
            });
       }
       return acc;
-    }, {});
+    }, {} as { [name: string]: { quantity: number; tags: Set<string> } }); // Corrected type assertion for initial value
   }, [inventory]);
 
 
@@ -644,56 +645,52 @@ const InventoryPage: FC = () => {
 
       {/* Sticky Bottom Section (Summary Table and Add Item) */}
       <div className="sticky bottom-0 bg-background border-t mt-auto z-10 p-4"> {/* Use mt-auto and z-10 */}
-        {/* Total Quantity by Item Name Table */}
-        <div className="mb-4 max-h-48 overflow-y-auto"> {/* Wrap summary table in scrollable container */}
-          <Table className="rounded-md shadow-sm">
-            <TableCaption>품목별 총 수량 및 태그</TableCaption> {/* Update caption */}
-            <TableHeader>
-              <TableRow>
-                <TableHead>품목 이름</TableHead>
-                <TableHead>총 수량</TableHead>
-                <TableHead>태그</TableHead> {/* Add new header */}
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {/* Update map function to use itemSummary */}
-              {Object.entries(itemSummary)
-                  .sort(([nameA], [nameB]) => nameA.localeCompare(nameB)) // Sort summary alphabetically by name
-                  .map(([name, summary]) => (
-                <TableRow key={name}>
-                  {/* Apply max-w-xs, whitespace-normal, and break-words */}
-                  <TableCell className="whitespace-normal break-words max-w-xs">{name}</TableCell>
-                  <TableCell>{summary.quantity}</TableCell>
-                  {/* Add new cell for tags */}
-                  <TableCell>
-                    <div className="flex flex-wrap gap-1">
-                      {Array.from(summary.tags)
-                          .sort() // Sort tags alphabetically
-                          .map((tag: string, index: number) => ( // Add types for tag and index
-                        // Add hover:bg-amber-200 and hover:text-amber-900 for hover effect
-                        <Badge
-                          key={`${name}-tag-${index}`}
-                          variant="secondary" // Use secondary variant for consistency
-                          className="font-normal rounded-sm bg-amber-100 text-amber-800 border-amber-200 hover:bg-amber-200 hover:text-amber-900"
-                        >
-                          {tag}
-                        </Badge>
-                      ))}
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))}
-               {/* Add row for empty state */}
-               {Object.keys(itemSummary).length === 0 && (
-                   <TableRow>
-                       <TableCell colSpan={3} className="text-center text-muted-foreground h-16">
-                           요약할 품목이 없습니다.
-                       </TableCell>
-                   </TableRow>
-               )}
-            </TableBody>
-          </Table>
+        {/* Toggle Summary Button */}
+        <div className="flex justify-between items-center mb-2">
+          <h2 className="text-xl font-semibold">품목별 요약</h2>
+          <Button onClick={() => setIsSummaryVisible(!isSummaryVisible)} variant="ghost" size="sm">
+            {isSummaryVisible ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+            <span className="ml-1">{isSummaryVisible ? '요약 숨기기' : '요약 보기'}</span>
+          </Button>
         </div>
+
+        {/* Total Quantity by Item Name Table - Conditionally render and apply max height */}
+        {isSummaryVisible && (
+          <div className="mb-4 max-h-[50vh] overflow-y-auto"> {/* Wrap summary table in scrollable container with max-h-[50vh] */}
+            <Table className="rounded-md shadow-sm">
+              <TableCaption>품목별 총 수량 및 태그</TableCaption> {/* Update caption */}
+              <TableHeader>
+                <TableRow>
+                  <TableHead>품목 이름</TableHead>
+                  <TableHead>총 수량</TableHead>
+                  <TableHead>태그</TableHead>
+                 </TableRow>
+              </TableHeader>
+              <TableBody>
+                {Object.entries(itemSummary).map(([name, summaryInfo]: [string, { quantity: number; tags: Set<string> }]) => (
+                  <TableRow key={name}>
+                    <TableCell className="font-medium">{name}</TableCell>
+                    <TableCell>{summaryInfo.quantity}</TableCell>
+                    <TableCell>
+                      <div className="flex flex-wrap gap-1">
+                        {Array.from(summaryInfo.tags).map((tag: string, index: number) => (
+                          <Badge key={`${name}-tag-${index}`} variant="secondary" className="font-normal rounded-sm">{tag}</Badge>
+                        ))}
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+                {Object.keys(itemSummary).length === 0 && (
+                  <TableRow>
+                    <TableCell colSpan={3} className="text-center text-muted-foreground">
+                      요약할 품목이 없습니다.
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </div>
+        )}
 
 
          {/* Add Item Section */}
